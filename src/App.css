@@ -1,0 +1,301 @@
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 24px;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borde);
+}
+
+.navbar__marca {
+  font-weight: 700;
+}
+
+.navbar__links {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+
+.navbar__links a {
+  color: var(--texto);
+  text-decoration: none;
+}
+
+.navbar__links a:hover {
+  color: var(--acento);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--borde);
+  color: var(--texto);
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.theme-toggle:hover {
+  background: var(--bg);
+}
+
+.navbar__usuario {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--texto-tenue);
+  font-size: 14px;
+}
+
+.pagina {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.pagina__encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.pagina__encabezado h1 {
+  margin: 0;
+}
+
+.pantalla-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  width: 100%;
+}
+
+.tarjeta label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--texto-tenue);
+}
+
+.tarjeta input,
+.formulario-inline input,
+.cobro-panel__opcion input {
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--acento);
+  color: white;
+  font-size: 14px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.formulario-inline {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.formulario-inline input {
+  flex: 1;
+}
+
+.monto {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.tarjeta-qr {
+  align-items: center;
+  text-align: center;
+}
+
+.qr-imagen {
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 8px;
+  background: white;
+}
+
+.detalle-fecha {
+  color: var(--texto-tenue);
+  font-size: 13px;
+}
+
+.mensaje-error {
+  color: var(--peligro);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--superficie);
+}
+
+.tabla th,
+.tabla td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--borde);
+  font-size: 14px;
+}
+
+.acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.estado {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #e4e7eb;
+  color: var(--texto-tenue);
+}
+
+.estado--pagado {
+  background: #e3f7e9;
+  color: var(--exito);
+}
+
+.estado--error,
+.estado--vencido {
+  background: #fbe6e6;
+  color: var(--peligro);
+}
+
+.estado--pendiente_confirmacion {
+  background: #fff4d6;
+  color: #8a6100;
+}
+
+.estado--abierta {
+  background: #e3f7e9;
+  color: var(--exito);
+}
+
+.estado--cerrada {
+  background: #e4e7eb;
+  color: var(--texto-tenue);
+}
+
+.tarjeta--ancha {
+  max-width: none;
+  margin-bottom: 24px;
+}
+
+.seccion__titulo {
+  margin-top: 32px;
+}
+
+.tarjeta__titulo {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.tarjetas-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.stat {
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.stat__etiqueta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--texto-tenue);
+}
+
+.comprobante {
+  max-width: 480px;
+}
+
+.comprobante__hoja {
+  max-width: none;
+}
+
+.comprobante__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.comprobante__tabla td {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--borde);
+  font-size: 14px;
+}
+
+.comprobante__tabla td:first-child {
+  color: var(--texto-tenue);
+  padding-right: 16px;
+  white-space: nowrap;
+}
+
+.cobro-panel {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.cobro-panel__opcion {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.cobro-panel__opcion .tarjeta__titulo {
+  margin: 0;
+}
+
+@media print {
+  .navbar,
+  .comprobante__solo-pantalla {
+    display: none !important;
+  }
+
+  .comprobante__hoja {
+    border: none;
+    box-shadow: none;
+  }
+}
