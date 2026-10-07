@@ -154,3 +154,19 @@ export interface UsuarioAdmin {
   activo: boolean;
   is_active: boolean;
 }
+
+// Factura ya pagada (por cualquier canal), tal como la devuelve el SIIC.
+export interface FacturaPagada {
+  codigo_sucursal: string;
+  nro_comprobante: string;
+  nro_suministro: string;
+  fecha: string;
+  tipo: string;
+  letra_comprobante: string;
+  nro_autorizacion: string;
+  nro_cliente: string;
+  importe: string;
+  pago_fecha: string;
+  pago_hora: string;
+  detalle: string;
+}

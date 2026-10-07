@@ -113,10 +113,16 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   return (await response.json()) as T;
 }
 
-export async function apiFetchBlob(path: string): Promise<Blob> {
-  const response = await fetchConAuth(path);
+export async function apiFetchBlob(path: string, options: ApiFetchOptions = {}): Promise<Blob> {
+  const response = await fetchConAuth(path, options);
   if (!response.ok) {
-    throw new ApiError(response.status, response.statusText);
+    let detail = response.statusText;
+    try {
+      detail = (await response.json()).detail ?? detail;
+    } catch {
+      // sin body JSON
+    }
+    throw new ApiError(response.status, detail);
   }
   return response.blob();
 }

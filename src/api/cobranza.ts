@@ -5,6 +5,7 @@ import type {
   CobroEfectivo,
   Deuda,
   Factura,
+  FacturaPagada,
   ResumenCaja,
   TransaccionQR,
 } from "./types";
@@ -102,4 +103,18 @@ export async function descargarTransaccionesCSV() {
   enlace.download = "transacciones_qr.csv";
   enlace.click();
   URL.revokeObjectURL(url);
+}
+
+// Todas las facturas ya pagadas del cliente, de la más nueva a la más vieja (SIIC).
+export async function listarFacturasPagadas(codigoCliente: string) {
+  const r = await apiFetch<{ items: FacturaPagada[] }>(`/clientes/${encodeURIComponent(codigoCliente)}/facturas-pagadas/`);
+  return r.items;
+}
+
+// PDF real de una factura pagada (reimpresión).
+export function obtenerPdfFacturaPagada(factura: FacturaPagada) {
+  return apiFetchBlob(`/clientes/${encodeURIComponent(factura.nro_cliente)}/facturas-pagadas/pdf/`, {
+    method: "POST",
+    body: factura,
+  });
 }

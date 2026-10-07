@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { CobroEfectivo, Deuda, ItemDeuda, TransaccionQR } from "../api/types";
 import { consultarDeuda, generarTransaccionQR, listarCajas, registrarCobroEfectivo } from "../api/cobranza";
 import { ApiError } from "../api/client";
+import { FacturasAnteriores } from "../components/FacturasAnteriores";
 import { useAuth } from "../context/AuthContext";
 import {
   aCentavos,
@@ -263,6 +264,8 @@ export function ConsultaDeudaPage() {
             ) : (
               <p className="detalle-fecha">Esta consulta no trae el detalle de comprobantes: se cobra el total.</p>
             )}
+
+            <FacturasAnteriores key={deuda.cliente.codigo_externo} codigoCliente={deuda.cliente.codigo_externo} />
           </section>
 
           {totalDeuda > 0 && esCajera && (

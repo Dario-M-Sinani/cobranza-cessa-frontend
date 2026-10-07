@@ -578,3 +578,24 @@ kbd {
     position: static;
   }
 }
+
+.facturas-anteriores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
+
+.tabla--compacta th,
+.tabla--compacta td {
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.boton-chico {
+  padding: 4px 10px;
+  font-size: 12px;
+  align-self: flex-start;
+}
