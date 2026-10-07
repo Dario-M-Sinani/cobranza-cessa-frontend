@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { obtenerCobroAgrupado, obtenerCobroEfectivo, obtenerTransaccion } from "../api/cobranza";
 import { ApiError } from "../api/client";
 import type { CobroAgrupado, CobroEfectivo, TransaccionQR } from "../api/types";
@@ -31,6 +31,8 @@ function ComprobanteIndividual() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar el comprobante."))
       .finally(() => setCargando(false));
   }, [tipo, id]);
+
+  useImprimirAlCargar(!cargando && datos !== null && (tipo === "efectivo" || (datos as TransaccionQR).estado === "pagado"));
 
   if (cargando) return <p className="pagina">Cargando...</p>;
   if (error || !datos) return <p className="pagina mensaje-error">{error ?? "Comprobante no encontrado."}</p>;
@@ -158,6 +160,8 @@ function ComprobanteGrupo() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar el comprobante."));
   }, [id]);
 
+  useImprimirAlCargar(grupo !== null);
+
   if (error) return <p className="pagina mensaje-error">{error}</p>;
   if (!grupo) return <p className="pagina">Cargando...</p>;
 
@@ -241,4 +245,22 @@ function ComprobanteGrupo() {
       </div>
     </div>
   );
+}
+
+// Con `?imprimir=1` (reimpresión con F9) abre el diálogo de impresión apenas el
+// comprobante está listo, una sola vez: el parámetro se saca de la URL para que recargar
+// la página no vuelva a imprimir.
+function useImprimirAlCargar(listo: boolean) {
+  const [parametros, setParametros] = useSearchParams();
+  const pedido = parametros.get("imprimir") === "1";
+  useEffect(() => {
+    if (!listo || !pedido) return;
+    // Primero imprimir y recién después limpiar la URL: limpiarla antes re-ejecutaría este
+    // efecto y su limpieza cancelaría la impresión.
+    const espera = setTimeout(() => {
+      window.print();
+      setParametros({}, { replace: true });
+    }, 300);
+    return () => clearTimeout(espera);
+  }, [listo, pedido, setParametros]);
 }

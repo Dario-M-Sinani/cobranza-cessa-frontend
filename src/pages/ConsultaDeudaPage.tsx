@@ -9,6 +9,7 @@ import {
   registrarCobroEfectivo,
 } from "../api/cobranza";
 import { ApiError } from "../api/client";
+import { reimprimirUltimo } from "../utils/reimprimir";
 import { FacturasAnteriores } from "../components/FacturasAnteriores";
 import { useAuth } from "../context/AuthContext";
 import { aCentavos, aDecimal, desgloseVuelto, fechaCorta, formatoBs, formatoKwh, sugerenciasDePago } from "../utils/dinero";
@@ -202,7 +203,10 @@ export function ConsultaDeudaPage() {
       <div className="pagina__encabezado">
         <h1>Cobrar</h1>
         <span className="atajos">
-          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo
+          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo · <kbd>F9</kbd> reimprimir último{" "}
+          <button type="button" className="boton-secundario boton-chico" onClick={reimprimirUltimo}>
+            Reimprimir último
+          </button>
         </span>
       </div>
 

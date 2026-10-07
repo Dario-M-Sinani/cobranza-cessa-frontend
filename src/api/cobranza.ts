@@ -137,3 +137,10 @@ export function registrarCobroAgrupado(montoRecibido: string, selecciones: Selec
 export function obtenerCobroAgrupado(id: number) {
   return apiFetch<CobroAgrupado>(`/cobros-agrupados/${id}/`);
 }
+
+export type TipoComprobante = "efectivo" | "grupo" | "qr";
+
+// Último cobro confirmado del usuario (para reimprimir con F9).
+export function obtenerUltimoComprobante() {
+  return apiFetch<{ tipo: TipoComprobante; id: number }>("/comprobantes/ultimo/");
+}

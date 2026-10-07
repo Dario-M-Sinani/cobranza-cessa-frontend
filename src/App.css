@@ -661,3 +661,26 @@ kbd {
 .comprobante__cliente p {
   margin: 0;
 }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--texto);
+  color: var(--bg);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 10;
+}
+
+.atajos .boton-chico {
+  margin-left: 8px;
+}
+
+@media print {
+  .toast {
+    display: none !important;
+  }
+}
