@@ -1,54 +1,112 @@
-import { useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import type { CobroEfectivo, Deuda, TransaccionQR } from "../api/types";
-import { consultarDeuda, generarTransaccionQR, registrarCobroEfectivo } from "../api/cobranza";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import type { CobroEfectivo, Deuda, ItemDeuda, TransaccionQR } from "../api/types";
+import { consultarDeuda, generarTransaccionQR, listarCajas, registrarCobroEfectivo } from "../api/cobranza";
 import { ApiError } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import {
+  aCentavos,
+  aDecimal,
+  desgloseVuelto,
+  fechaCorta,
+  formatoBs,
+  sugerenciasDePago,
+} from "../utils/dinero";
 
+type Metodo = "efectivo" | "qr";
+
+/**
+ * Pantalla de cobro de la cajera: buscar cliente → elegir comprobantes →
+ * cobrar en efectivo (con vuelto) o por QR → siguiente cliente.
+ *
+ * SIIC cobra comprobantes enteros y del más antiguo al más nuevo, y la deuda
+ * ya llega en ese orden: la selección es siempre "los N primeros". Marcar uno
+ * marca los anteriores; desmarcar uno desmarca los siguientes.
+ */
 export function ConsultaDeudaPage() {
   const { sesion } = useAuth();
   const navigate = useNavigate();
   const codigoInputRef = useRef<HTMLInputElement>(null);
+  const recibidoInputRef = useRef<HTMLInputElement>(null);
+  const siguienteRef = useRef<HTMLButtonElement>(null);
+
   const [codigoExterno, setCodigoExterno] = useState("");
   const [deuda, setDeuda] = useState<Deuda | null>(null);
+  const [cantidad, setCantidad] = useState(0);
+  const [metodo, setMetodo] = useState<Metodo>("efectivo");
+  const [recibido, setRecibido] = useState("");
   const [transaccion, setTransaccion] = useState<TransaccionQR | null>(null);
   const [cobroEfectivo, setCobroEfectivo] = useState<CobroEfectivo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
-  const [generando, setGenerando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [sinCajaAbierta, setSinCajaAbierta] = useState(false);
 
-  const [montoACobrar, setMontoACobrar] = useState("");
-  const [montoRecibido, setMontoRecibido] = useState("");
-  const [cobrando, setCobrando] = useState(false);
+  const esCajera = sesion?.rol === "cajera";
 
-  function resetearResultados() {
+  useEffect(() => {
+    if (!esCajera) return;
+    listarCajas()
+      .then((cajas) => setSinCajaAbierta(!cajas.some((c) => c.estado === "abierta")))
+      .catch(() => setSinCajaAbierta(false));
+  }, [esCajera]);
+
+  const items: ItemDeuda[] = deuda?.items ?? [];
+  const tieneItems = items.length > 0;
+
+  const aCobrar = !deuda
+    ? 0
+    : tieneItems
+      ? items.slice(0, cantidad).reduce((suma, item) => suma + aCentavos(item.importe), 0)
+      : aCentavos(deuda.monto);
+
+  const totalDeuda = aCentavos(deuda?.monto);
+  const recibidoCentavos = aCentavos(recibido);
+  const vuelto = recibidoCentavos - aCobrar;
+  const cobraTodo = !tieneItems || cantidad === items.length;
+
+  function nuevoCliente() {
     setCodigoExterno("");
     setDeuda(null);
+    setCantidad(0);
+    setRecibido("");
     setTransaccion(null);
     setCobroEfectivo(null);
-    setMontoACobrar("");
-    setMontoRecibido("");
-    // Cada cobro termina con el foco listo para el próximo cliente -- esto
-    // es lo que hace que se sienta como una caja real, no una serie de
-    // páginas separadas.
+    setError(null);
     codigoInputRef.current?.focus();
   }
 
+  // Esc: siempre vuelve al buscador, listo para el próximo cliente.
+  useEffect(() => {
+    function alPresionar(e: KeyboardEvent) {
+      if (e.key === "Escape") nuevoCliente();
+    }
+    window.addEventListener("keydown", alPresionar);
+    return () => window.removeEventListener("keydown", alPresionar);
+  }, []);
+
+  useEffect(() => {
+    if (cobroEfectivo || transaccion) siguienteRef.current?.focus();
+  }, [cobroEfectivo, transaccion]);
+
   async function onConsultar(e: FormEvent) {
     e.preventDefault();
+    const codigo = codigoExterno.trim();
+    if (!codigo) return;
     setError(null);
     setDeuda(null);
     setTransaccion(null);
     setCobroEfectivo(null);
     setCargando(true);
     try {
-      const resultado = await consultarDeuda(codigoExterno);
+      const resultado = await consultarDeuda(codigo);
       setDeuda(resultado);
-      // Por defecto se cobra la deuda completa y se asume pago exacto (sin
-      // vuelto) -- el cajero solo tipea algo si el cliente paga distinto o
-      // pide un adelanto. Menos tipeo para el caso más común.
-      setMontoACobrar(resultado.monto);
-      setMontoRecibido(resultado.monto);
+      // Por defecto se cobra todo y se asume pago exacto: el caso más común
+      // no necesita tipear nada.
+      setCantidad(resultado.items?.length ?? 0);
+      setRecibido("");
+      setMetodo("efectivo");
+      setTimeout(() => recibidoInputRef.current?.focus(), 0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo consultar la deuda.");
     } finally {
@@ -56,126 +114,280 @@ export function ConsultaDeudaPage() {
     }
   }
 
-  function onCambiarMontoACobrar(valor: string) {
-    setMontoACobrar(valor);
-    setMontoRecibido(valor);
+  function alternarComprobante(indice: number) {
+    // Marcado → desmarca ese y los siguientes. Sin marcar → marca hasta ese.
+    setCantidad(indice < cantidad ? indice : indice + 1);
+    setRecibido("");
   }
 
-  async function onGenerarQR() {
-    if (!deuda) return;
-    setError(null);
-    setTransaccion(null);
-    setGenerando(true);
-    try {
-      setTransaccion(await generarTransaccionQR(deuda.id, montoACobrar));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo generar el QR.");
-    } finally {
-      setGenerando(false);
+  async function onCobrarEfectivo(e?: FormEvent) {
+    e?.preventDefault();
+    if (!deuda || aCobrar <= 0) return;
+    const montoRecibido = recibido === "" ? aCobrar : recibidoCentavos;
+    if (montoRecibido < aCobrar) {
+      setError(`Falta Bs. ${formatoBs(aCobrar - montoRecibido)} para cubrir el cobro.`);
+      return;
     }
-  }
-
-  const vueltoCalculado =
-    montoACobrar && montoRecibido && !Number.isNaN(Number(montoRecibido))
-      ? (Number(montoRecibido) - Number(montoACobrar)).toFixed(2)
-      : null;
-
-  async function onConfirmarEfectivo(e: FormEvent) {
-    e.preventDefault();
-    if (!deuda) return;
     setError(null);
-    setCobrando(true);
+    setEnviando(true);
     try {
-      setCobroEfectivo(await registrarCobroEfectivo(deuda.id, montoRecibido, montoACobrar));
+      const cobro = await registrarCobroEfectivo(
+        deuda.id,
+        aDecimal(montoRecibido),
+        tieneItems && !cobraTodo ? cantidad : undefined,
+      );
+      setCobroEfectivo(cobro);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo registrar el cobro en efectivo.");
     } finally {
-      setCobrando(false);
+      setEnviando(false);
     }
   }
 
-  const esCajera = sesion?.rol === "cajera";
-  const tieneSaldo = deuda !== null && Number(deuda.monto) > 0;
+  async function onGenerarQR() {
+    if (!deuda || aCobrar <= 0) return;
+    setError(null);
+    setEnviando(true);
+    try {
+      setTransaccion(await generarTransaccionQR(deuda.id, tieneItems && !cobraTodo ? cantidad : undefined));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo generar el QR.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const terminado = Boolean(cobroEfectivo || transaccion);
 
   return (
-    <div className="pagina">
-      <h1>Consultar deuda</h1>
-      <form className="formulario-inline" onSubmit={onConsultar}>
+    <div className="pagina pagina--cobro">
+      <div className="pagina__encabezado">
+        <h1>Cobrar</h1>
+        <span className="atajos">
+          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> nuevo cliente
+        </span>
+      </div>
+
+      {esCajera && sinCajaAbierta && (
+        <p className="aviso">
+          No tienes una caja abierta: los cobros se registran igual, pero no entran en ningún cierre.{" "}
+          <Link to="/caja">Abrir caja</Link>
+        </p>
+      )}
+
+      <form className="buscador" onSubmit={onConsultar}>
         <input
           ref={codigoInputRef}
-          placeholder="Código de cliente"
+          inputMode="numeric"
+          placeholder="Número de cliente"
           value={codigoExterno}
           onChange={(e) => setCodigoExterno(e.target.value)}
           autoFocus
-          required
+          disabled={terminado}
         />
-        <button type="submit" disabled={cargando}>
-          {cargando ? "Consultando..." : "Consultar"}
+        <button type="submit" disabled={cargando || terminado}>
+          {cargando ? "Buscando..." : "Buscar"}
         </button>
       </form>
 
       {error && <p className="mensaje-error">{error}</p>}
 
-      {deuda && !transaccion && !cobroEfectivo && (
-        <div className="tarjeta tarjeta--ancha">
-          <h2>{deuda.cliente.nombre}</h2>
-          <p>Código: {deuda.cliente.codigo_externo}</p>
-          <p className="monto">Bs. {deuda.monto}</p>
-          <p className="detalle-fecha">Consultado: {new Date(deuda.fecha_consulta).toLocaleString()}</p>
+      {deuda && !terminado && (
+        <div className="cobro">
+          <section className="cobro__cliente tarjeta tarjeta--ancha">
+            <div className="cliente-cabecera">
+              <div>
+                <h2>{deuda.cliente.nombre}</h2>
+                <p className="detalle-fecha">
+                  Cliente {deuda.cliente.codigo_externo}
+                  {deuda.cliente.nit_ci ? ` · NIT/CI ${deuda.cliente.nit_ci}` : ""}
+                </p>
+              </div>
+              <div className="cliente-cabecera__total">
+                <span className="detalle-fecha">Deuda total</span>
+                <strong>Bs. {formatoBs(totalDeuda)}</strong>
+              </div>
+            </div>
 
-          {!tieneSaldo ? (
-            <p className="detalle-fecha">Este cliente no tiene deuda pendiente para cobrar.</p>
-          ) : (
-            esCajera && (
+            {totalDeuda <= 0 ? (
+              <p className="sin-deuda">Este cliente no tiene deuda pendiente.</p>
+            ) : tieneItems ? (
               <>
-                <label>
-                  Monto a cobrar (bajalo para cobrar un adelanto)
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={deuda.monto}
-                    value={montoACobrar}
-                    onChange={(e) => onCambiarMontoACobrar(e.target.value)}
-                  />
-                </label>
+                <table className="tabla tabla--comprobantes">
+                  <thead>
+                    <tr>
+                      <th aria-label="Cobrar" />
+                      <th>Concepto</th>
+                      <th>Emisión</th>
+                      <th>Vence</th>
+                      <th className="num">Importe (Bs.)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, i) => {
+                      const marcado = i < cantidad;
+                      const credito = aCentavos(item.importe) < 0;
+                      return (
+                        <tr
+                          key={`${item.tipo}-${item.nro_comprobante}-${i}`}
+                          className={`${marcado ? "fila--marcada" : ""} ${credito ? "fila--credito" : ""}`}
+                          onClick={() => esCajera && alternarComprobante(i)}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              disabled={!esCajera}
+                              onChange={() => alternarComprobante(i)}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`Cobrar ${item.detalle}`}
+                            />
+                          </td>
+                          <td>
+                            {item.detalle}
+                            <span className="detalle-fecha"> · N° {item.nro_comprobante}</span>
+                          </td>
+                          <td>{fechaCorta(item.fecha)}</td>
+                          <td>{fechaCorta(item.fecha_vencimiento)}</td>
+                          <td className="num">{formatoBs(aCentavos(item.importe))}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="detalle-fecha">
+                  Se cobra del más antiguo al más nuevo: al marcar un comprobante se marcan los anteriores. Las
+                  notas de crédito (en verde) restan.
+                </p>
+              </>
+            ) : (
+              <p className="detalle-fecha">Esta consulta no trae el detalle de comprobantes: se cobra el total.</p>
+            )}
+          </section>
 
-                <div className="cobro-panel">
-                  <div className="cobro-panel__opcion">
-                    <h3 className="tarjeta__titulo">QR</h3>
-                    <button onClick={onGenerarQR} disabled={generando || !montoACobrar}>
-                      {generando ? "Generando QR..." : "Generar QR de cobro"}
+          {totalDeuda > 0 && esCajera && (
+            <section className="cobro__panel tarjeta">
+              <div className="resumen-cobro">
+                <span className="detalle-fecha">
+                  A cobrar{tieneItems ? ` · ${cantidad} de ${items.length} comprobantes` : ""}
+                </span>
+                <strong className="monto monto--grande">Bs. {formatoBs(Math.max(aCobrar, 0))}</strong>
+                {!cobraTodo && aCobrar > 0 && (
+                  <span className="detalle-fecha">Queda pendiente Bs. {formatoBs(totalDeuda - aCobrar)}</span>
+                )}
+              </div>
+
+              {aCobrar <= 0 ? (
+                <p className="mensaje-error">
+                  {cantidad === 0
+                    ? "Marca al menos un comprobante."
+                    : "Lo marcado suma Bs. 0 o menos por las notas de crédito: marca el siguiente."}
+                </p>
+              ) : (
+                <>
+                  <div className="pestanas" role="tablist">
+                    <button
+                      role="tab"
+                      aria-selected={metodo === "efectivo"}
+                      className={metodo === "efectivo" ? "pestana pestana--activa" : "pestana"}
+                      onClick={() => setMetodo("efectivo")}
+                    >
+                      Efectivo
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={metodo === "qr"}
+                      className={metodo === "qr" ? "pestana pestana--activa" : "pestana"}
+                      onClick={() => setMetodo("qr")}
+                    >
+                      QR
                     </button>
                   </div>
 
-                  <form className="cobro-panel__opcion" onSubmit={onConfirmarEfectivo}>
-                    <h3 className="tarjeta__titulo">Efectivo</h3>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={montoACobrar}
-                      placeholder="Monto recibido"
-                      value={montoRecibido}
-                      onChange={(e) => setMontoRecibido(e.target.value)}
-                      required
-                    />
-                    {vueltoCalculado !== null && (
-                      <span className="detalle-fecha">Vuelto: Bs. {vueltoCalculado}</span>
-                    )}
-                    <button type="submit" disabled={cobrando || !montoACobrar}>
-                      {cobrando ? "Registrando..." : "Confirmar cobro en efectivo"}
-                    </button>
-                  </form>
-                </div>
-              </>
-            )
+                  {metodo === "efectivo" ? (
+                    <form className="efectivo" onSubmit={onCobrarEfectivo}>
+                      <label>
+                        Recibido (Bs.)
+                        <input
+                          ref={recibidoInputRef}
+                          className="input-grande"
+                          inputMode="decimal"
+                          placeholder={aDecimal(aCobrar)}
+                          value={recibido}
+                          onChange={(e) => setRecibido(e.target.value)}
+                        />
+                      </label>
+                      <div className="sugerencias">
+                        {sugerenciasDePago(aCobrar).map((valor) => (
+                          <button
+                            type="button"
+                            key={valor}
+                            className={`chip ${recibido !== "" && recibidoCentavos === valor ? "chip--activo" : ""}`}
+                            onClick={() => setRecibido(aDecimal(valor))}
+                          >
+                            {valor === aCobrar ? "Exacto" : `Bs. ${formatoBs(valor)}`}
+                          </button>
+                        ))}
+                      </div>
+
+                      <Vuelto vuelto={recibido === "" ? 0 : vuelto} />
+
+                      <button
+                        type="submit"
+                        className="boton-principal"
+                        disabled={enviando || (recibido !== "" && vuelto < 0)}
+                      >
+                        {enviando ? "Registrando..." : `Cobrar Bs. ${formatoBs(aCobrar)} en efectivo`}
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="efectivo">
+                      <p className="detalle-fecha">
+                        Se genera un QR por Bs. {formatoBs(aCobrar)} para que el cliente pague desde su banco.
+                      </p>
+                      <button className="boton-principal" onClick={onGenerarQR} disabled={enviando}>
+                        {enviando ? "Generando..." : `Generar QR por Bs. ${formatoBs(aCobrar)}`}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
           )}
         </div>
       )}
 
+      {cobroEfectivo && (
+        <div className="tarjeta tarjeta-qr resultado">
+          <p className="resultado__ok">Cobro registrado</p>
+          <span className="detalle-fecha">Vuelto a entregar</span>
+          <p className="monto monto--vuelto">Bs. {formatoBs(aCentavos(cobroEfectivo.vuelto))}</p>
+          <DesgloseVuelto centavos={aCentavos(cobroEfectivo.vuelto)} />
+          <p className="detalle-fecha">
+            Cobrado Bs. {formatoBs(aCentavos(cobroEfectivo.monto_snapshot))} · Recibido Bs.{" "}
+            {formatoBs(aCentavos(cobroEfectivo.monto_recibido))}
+            {cobroEfectivo.items_cobrados?.length ? ` · ${cobroEfectivo.items_cobrados.length} comprobantes` : ""}
+          </p>
+          {aCentavos(cobroEfectivo.monto_snapshot) < aCentavos(cobroEfectivo.deuda.monto) && (
+            <p className="detalle-fecha">
+              Queda pendiente Bs.{" "}
+              {formatoBs(aCentavos(cobroEfectivo.deuda.monto) - aCentavos(cobroEfectivo.monto_snapshot))}
+            </p>
+          )}
+          <div className="acciones">
+            <button className="boton-secundario" onClick={() => navigate(`/comprobante/efectivo/${cobroEfectivo.id}`)}>
+              Imprimir comprobante
+            </button>
+            <button ref={siguienteRef} onClick={nuevoCliente}>
+              Siguiente cliente (Enter)
+            </button>
+          </div>
+        </div>
+      )}
+
       {transaccion && (
-        <div className="tarjeta tarjeta-qr">
-          <h2>QR de cobro generado</h2>
+        <div className="tarjeta tarjeta-qr resultado">
+          <p className="resultado__ok">QR generado</p>
           {transaccion.imagen_qr_base64 ? (
             <img
               className="qr-imagen"
@@ -185,44 +397,46 @@ export function ConsultaDeudaPage() {
           ) : (
             <p className="mensaje-error">La pasarela no devolvió una imagen de QR.</p>
           )}
-          <p className="monto">Bs. {transaccion.monto_snapshot}</p>
-          {Number(transaccion.monto_snapshot) < Number(transaccion.deuda.monto) && (
-            <p className="detalle-fecha">
-              Adelanto — queda pendiente Bs.{" "}
-              {(Number(transaccion.deuda.monto) - Number(transaccion.monto_snapshot)).toFixed(2)}
-            </p>
-          )}
-          <p className="detalle-fecha">Esperando que el cliente escanee y pague.</p>
+          <p className="monto">Bs. {formatoBs(aCentavos(transaccion.monto_snapshot))}</p>
+          <p className="detalle-fecha">El cliente lo escanea desde su banco; el pago se confirma solo.</p>
           <div className="acciones">
-            <button onClick={() => navigate("/transacciones")}>Ir a transacciones</button>
-            <button onClick={resetearResultados}>Siguiente cliente</button>
-          </div>
-        </div>
-      )}
-
-      {cobroEfectivo && (
-        <div className="tarjeta tarjeta-qr">
-          <h2>Cobro en efectivo registrado</h2>
-          <p className="monto">Bs. {cobroEfectivo.monto_snapshot}</p>
-          <p>Recibido: Bs. {cobroEfectivo.monto_recibido}</p>
-          <p>Vuelto: Bs. {cobroEfectivo.vuelto}</p>
-          {Number(cobroEfectivo.monto_snapshot) < Number(cobroEfectivo.deuda.monto) && (
-            <p className="detalle-fecha">
-              Adelanto — queda pendiente Bs.{" "}
-              {(Number(cobroEfectivo.deuda.monto) - Number(cobroEfectivo.monto_snapshot)).toFixed(2)}
-            </p>
-          )}
-          <p className="detalle-fecha">
-            Factura {cobroEfectivo.factura?.estado_envio ?? "no generada"}.
-          </p>
-          <div className="acciones">
-            <button onClick={() => navigate(`/comprobante/efectivo/${cobroEfectivo.id}`)}>
-              Ver / imprimir comprobante
+            <button className="boton-secundario" onClick={() => navigate("/transacciones")}>
+              Ver transacciones
             </button>
-            <button onClick={resetearResultados}>Siguiente cliente</button>
+            <button ref={siguienteRef} onClick={nuevoCliente}>
+              Siguiente cliente (Enter)
+            </button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Vuelto({ vuelto }: { vuelto: number }) {
+  if (vuelto < 0) {
+    return <p className="vuelto vuelto--falta">Falta Bs. {formatoBs(-vuelto)}</p>;
+  }
+  return (
+    <div className="vuelto">
+      <span className="detalle-fecha">Vuelto</span>
+      <strong className="monto">Bs. {formatoBs(vuelto)}</strong>
+      {vuelto > 0 && <DesgloseVuelto centavos={vuelto} />}
+    </div>
+  );
+}
+
+function DesgloseVuelto({ centavos }: { centavos: number }) {
+  if (centavos <= 0) return null;
+  const { piezas, resto } = desgloseVuelto(centavos);
+  return (
+    <div className="desglose" aria-label="Cómo dar el vuelto">
+      {piezas.map((p) => (
+        <span key={p.centavos} className={p.esBillete ? "pieza pieza--billete" : "pieza pieza--moneda"}>
+          {p.cantidad} × {p.centavos >= 100 ? p.centavos / 100 : `0,${String(p.centavos).padStart(2, "0")}`}
+        </span>
+      ))}
+      {resto > 0 && <span className="detalle-fecha">+ {resto} ctvs. sin moneda</span>}
     </div>
   );
 }

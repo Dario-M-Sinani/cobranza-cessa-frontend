@@ -299,3 +299,282 @@ button:disabled {
     box-shadow: none;
   }
 }
+
+/* ---- Pantalla de cobro ---- */
+
+.pagina--cobro {
+  max-width: 1180px;
+}
+
+.atajos {
+  color: var(--texto-tenue);
+  font-size: 13px;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 1px 6px;
+  border: 1px solid var(--borde);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--superficie);
+}
+
+.aviso {
+  background: #fff4d6;
+  color: #6b4b00;
+  border: 1px solid #f0d58a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+:root[data-theme="dark"] .aviso {
+  background: #3a2f12;
+  color: #f3d58a;
+  border-color: #6b5520;
+}
+
+.buscador {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.buscador input {
+  flex: 1;
+  font-size: 22px;
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+.buscador button {
+  font-size: 16px;
+  padding: 0 24px;
+}
+
+.cobro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+.cobro__panel {
+  position: sticky;
+  top: 16px;
+  max-width: none;
+}
+
+.cliente-cabecera {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cliente-cabecera h2 {
+  margin: 0;
+}
+
+.cliente-cabecera__total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 20px;
+}
+
+.sin-deuda {
+  font-size: 18px;
+  color: var(--exito);
+}
+
+.tabla--comprobantes tbody tr {
+  cursor: pointer;
+}
+
+.tabla--comprobantes tbody tr:hover {
+  background: var(--bg);
+}
+
+.tabla--comprobantes .fila--marcada {
+  background: color-mix(in srgb, var(--acento) 8%, transparent);
+}
+
+.tabla--comprobantes .fila--credito td:last-child {
+  color: var(--exito);
+}
+
+.tabla--comprobantes input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.resumen-cobro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.monto--grande {
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pestanas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pestana {
+  background: transparent;
+  color: var(--texto);
+  border-radius: 0;
+  padding: 10px;
+  font-size: 15px;
+}
+
+.pestana--activa {
+  background: var(--acento);
+  color: white;
+}
+
+.efectivo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-grande {
+  font-size: 26px !important;
+  padding: 10px 12px !important;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg);
+  color: var(--texto);
+}
+
+.sugerencias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  background: var(--bg);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.chip--activo {
+  border-color: var(--acento);
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.vuelto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--exito) 10%, transparent);
+}
+
+.vuelto .monto {
+  color: var(--exito);
+  font-size: 28px;
+}
+
+.vuelto--falta {
+  background: color-mix(in srgb, var(--peligro) 10%, transparent);
+  color: var(--peligro);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.desglose {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: inherit;
+}
+
+.pieza {
+  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--borde);
+  font-variant-numeric: tabular-nums;
+}
+
+.pieza--billete {
+  background: color-mix(in srgb, var(--exito) 12%, transparent);
+}
+
+.pieza--moneda {
+  border-radius: 999px;
+}
+
+.boton-principal {
+  font-size: 17px;
+  padding: 14px;
+  font-weight: 600;
+}
+
+.boton-secundario {
+  background: transparent;
+  color: var(--acento);
+  border: 1px solid var(--acento);
+}
+
+.resultado {
+  margin: 0 auto;
+  max-width: 440px;
+}
+
+.resultado__ok {
+  margin: 0;
+  color: var(--exito);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.monto--vuelto {
+  font-size: 48px;
+  margin: 0;
+  color: var(--exito);
+  font-variant-numeric: tabular-nums;
+}
+
+.resultado .desglose {
+  justify-content: center;
+}
+
+.comprobante__items td:last-child {
+  text-align: right;
+}
+
+@media (max-width: 860px) {
+  .cobro {
+    grid-template-columns: 1fr;
+  }
+
+  .cobro__panel {
+    position: static;
+  }
+}

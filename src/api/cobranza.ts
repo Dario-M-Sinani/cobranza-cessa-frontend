@@ -28,11 +28,14 @@ export function obtenerCobroEfectivo(id: number) {
   return apiFetch<CobroEfectivo>(`/cobros-efectivo/${id}/`);
 }
 
-// `monto`: adelanto opcional -- si se omite, se cobra la deuda completa.
-export function generarTransaccionQR(deudaId: number, monto?: string) {
+// `cantidadComprobantes`: los N comprobantes más antiguos (SIIC no deja saltear
+// ninguno). Si se omite, se cobra la deuda completa.
+export function generarTransaccionQR(deudaId: number, cantidadComprobantes?: number) {
   return apiFetch<TransaccionQR>("/transacciones-qr/", {
     method: "POST",
-    body: monto ? { deuda_id: deudaId, monto } : { deuda_id: deudaId },
+    body: cantidadComprobantes
+      ? { deuda_id: deudaId, cantidad_comprobantes: cantidadComprobantes }
+      : { deuda_id: deudaId },
   });
 }
 
@@ -44,13 +47,13 @@ export function reintentarFacturacion(id: number) {
   return apiFetch<Factura>(`/transacciones-qr/${id}/reintentar_facturacion/`, { method: "POST" });
 }
 
-// `montoACobrar`: adelanto opcional -- si se omite, se cobra la deuda
-// completa y `montoRecibido` debe cubrirla.
-export function registrarCobroEfectivo(deudaId: number, montoRecibido: string, montoACobrar?: string) {
+// `cantidadComprobantes`: los N comprobantes más antiguos; si se omite, se
+// cobra la deuda completa. `montoRecibido` tiene que cubrir lo que se cobra.
+export function registrarCobroEfectivo(deudaId: number, montoRecibido: string, cantidadComprobantes?: number) {
   return apiFetch<CobroEfectivo>("/cobros-efectivo/", {
     method: "POST",
-    body: montoACobrar
-      ? { deuda_id: deudaId, monto_recibido: montoRecibido, monto_a_cobrar: montoACobrar }
+    body: cantidadComprobantes
+      ? { deuda_id: deudaId, monto_recibido: montoRecibido, cantidad_comprobantes: cantidadComprobantes }
       : { deuda_id: deudaId, monto_recibido: montoRecibido },
   });
 }

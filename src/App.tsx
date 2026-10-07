@@ -74,7 +74,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/transacciones" replace />} />
+        <Route path="/" element={<Navigate to="/deuda" replace />} />
         <Route path="*" element={<Navigate to="/transacciones" replace />} />
       </Routes>
     </AuthProvider>

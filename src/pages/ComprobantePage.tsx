@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { obtenerCobroEfectivo, obtenerTransaccion } from "../api/cobranza";
 import { ApiError } from "../api/client";
 import type { CobroEfectivo, TransaccionQR } from "../api/types";
+import { aCentavos, formatoBs } from "../utils/dinero";
 
 type Tipo = "qr" | "efectivo";
 
@@ -93,27 +94,42 @@ export function ComprobantePage() {
               <>
                 <tr>
                   <td>Monto recibido</td>
-                  <td>Bs. {cobro.monto_recibido}</td>
+                  <td>Bs. {formatoBs(aCentavos(cobro.monto_recibido))}</td>
                 </tr>
                 <tr>
                   <td>Vuelto</td>
-                  <td>Bs. {cobro.vuelto}</td>
+                  <td>Bs. {formatoBs(aCentavos(cobro.vuelto))}</td>
                 </tr>
               </>
             )}
             {esAdelanto && (
               <tr>
                 <td>Deuda total consultada</td>
-                <td>Bs. {datos.deuda.monto}</td>
+                <td>Bs. {formatoBs(aCentavos(datos.deuda.monto))}</td>
               </tr>
             )}
           </tbody>
         </table>
 
-        <p className="monto">Cobrado: Bs. {montoCobrado}</p>
+        {datos.items_cobrados?.length > 0 && (
+          <table className="comprobante__tabla comprobante__items">
+            <tbody>
+              {datos.items_cobrados.map((item, i) => (
+                <tr key={`${item.nro_comprobante}-${i}`}>
+                  <td>
+                    {item.detalle} <span className="detalle-fecha">N° {item.nro_comprobante}</span>
+                  </td>
+                  <td className="num">{formatoBs(aCentavos(item.importe))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <p className="monto">Cobrado: Bs. {formatoBs(aCentavos(montoCobrado))}</p>
         {esAdelanto && (
           <p className="detalle-fecha">
-            Adelanto — queda pendiente Bs. {(Number(datos.deuda.monto) - Number(montoCobrado)).toFixed(2)}
+            Pago parcial — queda pendiente Bs. {formatoBs(aCentavos(datos.deuda.monto) - aCentavos(montoCobrado))}
           </p>
         )}
         <p className="detalle-fecha">

@@ -18,7 +18,7 @@ export function NavBar() {
       <div className="navbar__marca">Cobranza CESSA</div>
       {sesion && (
         <div className="navbar__links">
-          <Link to="/deuda">Consultar deuda</Link>
+          <Link to="/deuda">Cobrar</Link>
           <Link to="/transacciones">Transacciones</Link>
           <Link to="/caja">Caja</Link>
           {(sesion.rol === "supervisor" || sesion.rol === "admin") && (

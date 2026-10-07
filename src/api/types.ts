@@ -7,11 +7,28 @@ export interface Cliente {
   nit_ci: string;
 }
 
+// Comprobante pendiente tal como lo devuelve SIIC. `importe` viene firmado
+// (negativo = nota de crédito). Las fechas son "yyyymmdd".
+export interface ItemDeuda {
+  codigo_sucursal: string;
+  nro_comprobante: string;
+  tipo: string;
+  fecha: string;
+  fecha_vencimiento?: string;
+  anio: number;
+  mes: number;
+  importe: string;
+  detalle: string;
+  debito_credito: string;
+}
+
 export interface Deuda {
   id: number;
   cliente: Cliente;
   monto: string;
   fecha_consulta: string;
+  // En el orden en que SIIC exige pagarlos: se cobra siempre un prefijo.
+  items: ItemDeuda[];
 }
 
 export type EstadoTransaccion =
@@ -46,6 +63,7 @@ export interface TransaccionQR {
   // Solo viene poblado en la respuesta de POST /transacciones-qr/ (la
   // pasarela no permite volver a pedir la imagen después).
   imagen_qr_base64: string | null;
+  items_cobrados: ItemDeuda[];
 }
 
 export type EstadoCaja = "abierta" | "cerrada";
@@ -79,6 +97,7 @@ export interface CobroEfectivo {
   vuelto: string;
   creado_en: string;
   factura: Factura | null;
+  items_cobrados: ItemDeuda[];
 }
 
 export interface ResumenFormaPago {
