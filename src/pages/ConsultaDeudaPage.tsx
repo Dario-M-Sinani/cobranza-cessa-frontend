@@ -1,28 +1,45 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { CobroEfectivo, Deuda, ItemDeuda, TransaccionQR } from "../api/types";
-import { consultarDeuda, generarTransaccionQR, listarCajas, registrarCobroEfectivo } from "../api/cobranza";
+import type { CobroAgrupado, CobroEfectivo, Deuda, ItemDeuda, TransaccionQR } from "../api/types";
+import {
+  consultarDeuda,
+  generarTransaccionQR,
+  listarCajas,
+  registrarCobroAgrupado,
+  registrarCobroEfectivo,
+} from "../api/cobranza";
 import { ApiError } from "../api/client";
 import { FacturasAnteriores } from "../components/FacturasAnteriores";
 import { useAuth } from "../context/AuthContext";
-import {
-  aCentavos,
-  aDecimal,
-  desgloseVuelto,
-  fechaCorta,
-  formatoBs,
-  sugerenciasDePago,
-} from "../utils/dinero";
+import { aCentavos, aDecimal, desgloseVuelto, fechaCorta, formatoBs, formatoKwh, sugerenciasDePago } from "../utils/dinero";
 
 type Metodo = "efectivo" | "qr";
 
+// Un cliente dentro del cobro en curso: su deuda consultada y cuántos comprobantes se
+// le cobran (siempre los N más antiguos; SIIC no deja saltear).
+interface EnCarrito {
+  deuda: Deuda;
+  cantidad: number;
+}
+
+function montoDe(entrada: EnCarrito): number {
+  const items = entrada.deuda.items ?? [];
+  if (items.length === 0) return aCentavos(entrada.deuda.monto);
+  return items.slice(0, entrada.cantidad).reduce((suma, item) => suma + aCentavos(item.importe), 0);
+}
+
+function cobraTodo(entrada: EnCarrito): boolean {
+  const items = entrada.deuda.items ?? [];
+  return items.length === 0 || entrada.cantidad === items.length;
+}
+
 /**
- * Pantalla de cobro de la cajera: buscar cliente → elegir comprobantes →
- * cobrar en efectivo (con vuelto) o por QR → siguiente cliente.
+ * Pantalla de cobro: buscar cliente → elegir comprobantes → (opcional) agregar más
+ * clientes al mismo cobro → efectivo (un solo vuelto) o QR (un cliente) → siguiente.
  *
- * SIIC cobra comprobantes enteros y del más antiguo al más nuevo, y la deuda
- * ya llega en ese orden: la selección es siempre "los N primeros". Marcar uno
- * marca los anteriores; desmarcar uno desmarca los siguientes.
+ * SIIC cobra comprobantes enteros y del más antiguo al más nuevo, y la deuda ya llega en
+ * ese orden: por cliente la selección es "los N primeros". Marcar uno marca los
+ * anteriores; desmarcar uno desmarca los siguientes.
  */
 export function ConsultaDeudaPage() {
   const { sesion } = useAuth();
@@ -32,18 +49,27 @@ export function ConsultaDeudaPage() {
   const siguienteRef = useRef<HTMLButtonElement>(null);
 
   const [codigoExterno, setCodigoExterno] = useState("");
-  const [deuda, setDeuda] = useState<Deuda | null>(null);
-  const [cantidad, setCantidad] = useState(0);
+  const [carrito, setCarrito] = useState<EnCarrito[]>([]);
+  const [activo, setActivo] = useState(0);
   const [metodo, setMetodo] = useState<Metodo>("efectivo");
   const [recibido, setRecibido] = useState("");
   const [transaccion, setTransaccion] = useState<TransaccionQR | null>(null);
   const [cobroEfectivo, setCobroEfectivo] = useState<CobroEfectivo | null>(null);
+  const [cobroAgrupado, setCobroAgrupado] = useState<CobroAgrupado | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [sinCajaAbierta, setSinCajaAbierta] = useState(false);
 
   const esCajera = sesion?.rol === "cajera";
+  const actual: EnCarrito | null = carrito[activo] ?? null;
+  const conDeuda = carrito.filter((e) => aCentavos(e.deuda.monto) > 0);
+  const varios = carrito.length > 1;
+  const aCobrar = carrito.reduce((suma, e) => suma + Math.max(montoDe(e), 0), 0);
+  const seleccionInvalida = carrito.some((e) => aCentavos(e.deuda.monto) > 0 && montoDe(e) <= 0);
+  const recibidoCentavos = aCentavos(recibido);
+  const vuelto = recibidoCentavos - aCobrar;
+  const terminado = Boolean(cobroEfectivo || transaccion || cobroAgrupado);
 
   useEffect(() => {
     if (!esCajera) return;
@@ -52,61 +78,53 @@ export function ConsultaDeudaPage() {
       .catch(() => setSinCajaAbierta(false));
   }, [esCajera]);
 
-  const items: ItemDeuda[] = deuda?.items ?? [];
-  const tieneItems = items.length > 0;
-
-  const aCobrar = !deuda
-    ? 0
-    : tieneItems
-      ? items.slice(0, cantidad).reduce((suma, item) => suma + aCentavos(item.importe), 0)
-      : aCentavos(deuda.monto);
-
-  const totalDeuda = aCentavos(deuda?.monto);
-  const recibidoCentavos = aCentavos(recibido);
-  const vuelto = recibidoCentavos - aCobrar;
-  const cobraTodo = !tieneItems || cantidad === items.length;
-
-  function nuevoCliente() {
+  function nuevoCobro() {
     setCodigoExterno("");
-    setDeuda(null);
-    setCantidad(0);
+    setCarrito([]);
+    setActivo(0);
     setRecibido("");
+    setMetodo("efectivo");
     setTransaccion(null);
     setCobroEfectivo(null);
+    setCobroAgrupado(null);
     setError(null);
     codigoInputRef.current?.focus();
   }
 
-  // Esc: siempre vuelve al buscador, listo para el próximo cliente.
+  // Esc: siempre vuelve a un cobro nuevo, listo para el próximo cliente.
   useEffect(() => {
     function alPresionar(e: KeyboardEvent) {
-      if (e.key === "Escape") nuevoCliente();
+      if (e.key === "Escape") nuevoCobro();
     }
     window.addEventListener("keydown", alPresionar);
     return () => window.removeEventListener("keydown", alPresionar);
   }, []);
 
   useEffect(() => {
-    if (cobroEfectivo || transaccion) siguienteRef.current?.focus();
-  }, [cobroEfectivo, transaccion]);
+    if (terminado) siguienteRef.current?.focus();
+  }, [terminado]);
 
   async function onConsultar(e: FormEvent) {
     e.preventDefault();
     const codigo = codigoExterno.trim();
     if (!codigo) return;
     setError(null);
-    setDeuda(null);
-    setTransaccion(null);
-    setCobroEfectivo(null);
     setCargando(true);
     try {
-      const resultado = await consultarDeuda(codigo);
-      setDeuda(resultado);
-      // Por defecto se cobra todo y se asume pago exacto: el caso más común
-      // no necesita tipear nada.
-      setCantidad(resultado.items?.length ?? 0);
+      const deuda = await consultarDeuda(codigo);
+      const entrada = { deuda, cantidad: deuda.items?.length ?? 0 };
+      const existente = carrito.findIndex((c) => c.deuda.cliente.codigo_externo === deuda.cliente.codigo_externo);
+      if (existente >= 0) {
+        // Ya estaba: se reemplaza por la consulta fresca.
+        setCarrito(carrito.map((c, i) => (i === existente ? entrada : c)));
+        setActivo(existente);
+      } else {
+        setCarrito([...carrito, entrada]);
+        setActivo(carrito.length);
+      }
+      setCodigoExterno("");
       setRecibido("");
-      setMetodo("efectivo");
+      if (carrito.length > 0) setMetodo("efectivo");
       setTimeout(() => recibidoInputRef.current?.focus(), 0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo consultar la deuda.");
@@ -116,14 +134,23 @@ export function ConsultaDeudaPage() {
   }
 
   function alternarComprobante(indice: number) {
-    // Marcado → desmarca ese y los siguientes. Sin marcar → marca hasta ese.
-    setCantidad(indice < cantidad ? indice : indice + 1);
+    if (!actual) return;
+    const cantidad = indice < actual.cantidad ? indice : indice + 1;
+    setCarrito(carrito.map((c, i) => (i === activo ? { ...c, cantidad } : c)));
     setRecibido("");
+  }
+
+  function quitar(indice: number) {
+    const restantes = carrito.filter((_, i) => i !== indice);
+    setCarrito(restantes);
+    setActivo(Math.max(0, Math.min(activo >= indice ? activo - 1 : activo, restantes.length - 1)));
+    setRecibido("");
+    if (restantes.length === 0) codigoInputRef.current?.focus();
   }
 
   async function onCobrarEfectivo(e?: FormEvent) {
     e?.preventDefault();
-    if (!deuda || aCobrar <= 0) return;
+    if (conDeuda.length === 0 || aCobrar <= 0 || seleccionInvalida) return;
     const montoRecibido = recibido === "" ? aCobrar : recibidoCentavos;
     if (montoRecibido < aCobrar) {
       setError(`Falta Bs. ${formatoBs(aCobrar - montoRecibido)} para cubrir el cobro.`);
@@ -132,12 +159,21 @@ export function ConsultaDeudaPage() {
     setError(null);
     setEnviando(true);
     try {
-      const cobro = await registrarCobroEfectivo(
-        deuda.id,
-        aDecimal(montoRecibido),
-        tieneItems && !cobraTodo ? cantidad : undefined,
-      );
-      setCobroEfectivo(cobro);
+      if (conDeuda.length === 1) {
+        const unico = conDeuda[0];
+        setCobroEfectivo(
+          await registrarCobroEfectivo(unico.deuda.id, aDecimal(montoRecibido), cobraTodo(unico) ? undefined : unico.cantidad),
+        );
+      } else {
+        setCobroAgrupado(
+          await registrarCobroAgrupado(
+            aDecimal(montoRecibido),
+            conDeuda.map((c) =>
+              cobraTodo(c) ? { deuda_id: c.deuda.id } : { deuda_id: c.deuda.id, cantidad_comprobantes: c.cantidad },
+            ),
+          ),
+        );
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo registrar el cobro en efectivo.");
     } finally {
@@ -146,11 +182,12 @@ export function ConsultaDeudaPage() {
   }
 
   async function onGenerarQR() {
-    if (!deuda || aCobrar <= 0) return;
+    if (conDeuda.length !== 1 || aCobrar <= 0) return;
+    const unico = conDeuda[0];
     setError(null);
     setEnviando(true);
     try {
-      setTransaccion(await generarTransaccionQR(deuda.id, tieneItems && !cobraTodo ? cantidad : undefined));
+      setTransaccion(await generarTransaccionQR(unico.deuda.id, cobraTodo(unico) ? undefined : unico.cantidad));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo generar el QR.");
     } finally {
@@ -158,14 +195,14 @@ export function ConsultaDeudaPage() {
     }
   }
 
-  const terminado = Boolean(cobroEfectivo || transaccion);
+  const items: ItemDeuda[] = actual?.deuda.items ?? [];
 
   return (
     <div className="pagina pagina--cobro">
       <div className="pagina__encabezado">
         <h1>Cobrar</h1>
         <span className="atajos">
-          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> nuevo cliente
+          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo
         </span>
       </div>
 
@@ -176,43 +213,59 @@ export function ConsultaDeudaPage() {
         </p>
       )}
 
-      <form className="buscador" onSubmit={onConsultar}>
-        <input
-          ref={codigoInputRef}
-          inputMode="numeric"
-          placeholder="Número de cliente"
-          value={codigoExterno}
-          onChange={(e) => setCodigoExterno(e.target.value)}
-          autoFocus
-          disabled={terminado}
-        />
-        <button type="submit" disabled={cargando || terminado}>
-          {cargando ? "Buscando..." : "Buscar"}
-        </button>
-      </form>
+      {!terminado && (
+        <form className="buscador" onSubmit={onConsultar}>
+          <input
+            ref={codigoInputRef}
+            inputMode="numeric"
+            placeholder={carrito.length ? "Agregar otro cliente al cobro (número)" : "Número de cliente"}
+            value={codigoExterno}
+            onChange={(e) => setCodigoExterno(e.target.value)}
+            autoFocus
+          />
+          <button type="submit" disabled={cargando}>
+            {cargando ? "Buscando..." : carrito.length ? "Agregar" : "Buscar"}
+          </button>
+        </form>
+      )}
 
       {error && <p className="mensaje-error">{error}</p>}
 
-      {deuda && !terminado && (
+      {actual && !terminado && (
         <div className="cobro">
           <section className="cobro__cliente tarjeta tarjeta--ancha">
+            {varios && (
+              <div className="clientes-cobro" role="tablist" aria-label="Clientes en este cobro">
+                {carrito.map((c, i) => (
+                  <span key={c.deuda.cliente.codigo_externo} className={i === activo ? "cliente-chip cliente-chip--activo" : "cliente-chip"}>
+                    <button type="button" role="tab" aria-selected={i === activo} onClick={() => setActivo(i)}>
+                      {c.deuda.cliente.codigo_externo} · Bs. {formatoBs(Math.max(montoDe(c), 0))}
+                    </button>
+                    <button type="button" className="cliente-chip__quitar" aria-label={`Quitar ${c.deuda.cliente.nombre}`} onClick={() => quitar(i)}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="cliente-cabecera">
               <div>
-                <h2>{deuda.cliente.nombre}</h2>
+                <h2>{actual.deuda.cliente.nombre}</h2>
                 <p className="detalle-fecha">
-                  Cliente {deuda.cliente.codigo_externo}
-                  {deuda.cliente.nit_ci ? ` · NIT/CI ${deuda.cliente.nit_ci}` : ""}
+                  Cliente {actual.deuda.cliente.codigo_externo}
+                  {actual.deuda.cliente.nit_ci ? ` · NIT/CI ${actual.deuda.cliente.nit_ci}` : ""}
                 </p>
               </div>
               <div className="cliente-cabecera__total">
                 <span className="detalle-fecha">Deuda total</span>
-                <strong>Bs. {formatoBs(totalDeuda)}</strong>
+                <strong>Bs. {formatoBs(aCentavos(actual.deuda.monto))}</strong>
               </div>
             </div>
 
-            {totalDeuda <= 0 ? (
+            {aCentavos(actual.deuda.monto) <= 0 ? (
               <p className="sin-deuda">Este cliente no tiene deuda pendiente.</p>
-            ) : tieneItems ? (
+            ) : items.length > 0 ? (
               <>
                 <table className="tabla tabla--comprobantes">
                   <thead>
@@ -221,12 +274,13 @@ export function ConsultaDeudaPage() {
                       <th>Concepto</th>
                       <th>Emisión</th>
                       <th>Vence</th>
+                      <th className="num">Consumo (kWh)</th>
                       <th className="num">Importe (Bs.)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, i) => {
-                      const marcado = i < cantidad;
+                      const marcado = i < actual.cantidad;
                       const credito = aCentavos(item.importe) < 0;
                       return (
                         <tr
@@ -250,6 +304,7 @@ export function ConsultaDeudaPage() {
                           </td>
                           <td>{fechaCorta(item.fecha)}</td>
                           <td>{fechaCorta(item.fecha_vencimiento)}</td>
+                          <td className="num">{formatoKwh(item.consumo_kwh)}</td>
                           <td className="num">{formatoBs(aCentavos(item.importe))}</td>
                         </tr>
                       );
@@ -265,26 +320,48 @@ export function ConsultaDeudaPage() {
               <p className="detalle-fecha">Esta consulta no trae el detalle de comprobantes: se cobra el total.</p>
             )}
 
-            <FacturasAnteriores key={deuda.cliente.codigo_externo} codigoCliente={deuda.cliente.codigo_externo} />
+            <FacturasAnteriores key={actual.deuda.cliente.codigo_externo} codigoCliente={actual.deuda.cliente.codigo_externo} />
           </section>
 
-          {totalDeuda > 0 && esCajera && (
+          {esCajera && conDeuda.length > 0 && (
             <section className="cobro__panel tarjeta">
+              {varios ? (
+                <div className="resumen-carrito">
+                  <span className="detalle-fecha">Cobro de {carrito.length} clientes</span>
+                  {carrito.map((c, i) => (
+                    <div key={c.deuda.cliente.codigo_externo} className="resumen-carrito__fila" onClick={() => setActivo(i)}>
+                      <span>
+                        {c.deuda.cliente.nombre}
+                        <span className="detalle-fecha">
+                          {" "}
+                          · {(c.deuda.items?.length ?? 0) > 0 ? `${c.cantidad} de ${c.deuda.items.length}` : "total"}
+                        </span>
+                      </span>
+                      <span className="num">{formatoBs(Math.max(montoDe(c), 0))}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="resumen-cobro">
                 <span className="detalle-fecha">
-                  A cobrar{tieneItems ? ` · ${cantidad} de ${items.length} comprobantes` : ""}
+                  {varios
+                    ? "Total a cobrar"
+                    : `A cobrar${items.length ? ` · ${actual.cantidad} de ${items.length} comprobantes` : ""}`}
                 </span>
-                <strong className="monto monto--grande">Bs. {formatoBs(Math.max(aCobrar, 0))}</strong>
-                {!cobraTodo && aCobrar > 0 && (
-                  <span className="detalle-fecha">Queda pendiente Bs. {formatoBs(totalDeuda - aCobrar)}</span>
+                <strong className="monto monto--grande">Bs. {formatoBs(aCobrar)}</strong>
+                {!varios && !cobraTodo(actual) && aCobrar > 0 && (
+                  <span className="detalle-fecha">
+                    Queda pendiente Bs. {formatoBs(aCentavos(actual.deuda.monto) - aCobrar)}
+                  </span>
                 )}
               </div>
 
-              {aCobrar <= 0 ? (
+              {seleccionInvalida || aCobrar <= 0 ? (
                 <p className="mensaje-error">
-                  {cantidad === 0
-                    ? "Marca al menos un comprobante."
-                    : "Lo marcado suma Bs. 0 o menos por las notas de crédito: marca el siguiente."}
+                  {carrito.some((c) => aCentavos(c.deuda.monto) > 0 && c.cantidad === 0)
+                    ? "Hay un cliente sin comprobantes marcados: márcale al menos uno o quítalo del cobro."
+                    : "Lo marcado suma Bs. 0 o menos por las notas de crédito: marca el siguiente comprobante."}
                 </p>
               ) : (
                 <>
@@ -302,12 +379,14 @@ export function ConsultaDeudaPage() {
                       aria-selected={metodo === "qr"}
                       className={metodo === "qr" ? "pestana pestana--activa" : "pestana"}
                       onClick={() => setMetodo("qr")}
+                      disabled={conDeuda.length > 1}
+                      title={conDeuda.length > 1 ? "El QR se genera para un cliente a la vez" : undefined}
                     >
                       QR
                     </button>
                   </div>
 
-                  {metodo === "efectivo" ? (
+                  {metodo === "efectivo" || conDeuda.length > 1 ? (
                     <form className="efectivo" onSubmit={onCobrarEfectivo}>
                       <label>
                         Recibido (Bs.)
@@ -340,7 +419,9 @@ export function ConsultaDeudaPage() {
                         className="boton-principal"
                         disabled={enviando || (recibido !== "" && vuelto < 0)}
                       >
-                        {enviando ? "Registrando..." : `Cobrar Bs. ${formatoBs(aCobrar)} en efectivo`}
+                        {enviando
+                          ? "Registrando..."
+                          : `Cobrar Bs. ${formatoBs(aCobrar)}${varios ? ` (${conDeuda.length} clientes)` : " en efectivo"}`}
                       </button>
                     </form>
                   ) : (
@@ -355,37 +436,34 @@ export function ConsultaDeudaPage() {
                   )}
                 </>
               )}
+              <p className="detalle-fecha">
+                ¿Paga también otra cuenta? Búscala arriba y se suma a este cobro con un solo vuelto.
+              </p>
             </section>
           )}
         </div>
       )}
 
       {cobroEfectivo && (
-        <div className="tarjeta tarjeta-qr resultado">
-          <p className="resultado__ok">Cobro registrado</p>
-          <span className="detalle-fecha">Vuelto a entregar</span>
-          <p className="monto monto--vuelto">Bs. {formatoBs(aCentavos(cobroEfectivo.vuelto))}</p>
-          <DesgloseVuelto centavos={aCentavos(cobroEfectivo.vuelto)} />
-          <p className="detalle-fecha">
-            Cobrado Bs. {formatoBs(aCentavos(cobroEfectivo.monto_snapshot))} · Recibido Bs.{" "}
-            {formatoBs(aCentavos(cobroEfectivo.monto_recibido))}
-            {cobroEfectivo.items_cobrados?.length ? ` · ${cobroEfectivo.items_cobrados.length} comprobantes` : ""}
-          </p>
-          {aCentavos(cobroEfectivo.monto_snapshot) < aCentavos(cobroEfectivo.deuda.monto) && (
-            <p className="detalle-fecha">
-              Queda pendiente Bs.{" "}
-              {formatoBs(aCentavos(cobroEfectivo.deuda.monto) - aCentavos(cobroEfectivo.monto_snapshot))}
-            </p>
-          )}
-          <div className="acciones">
-            <button className="boton-secundario" onClick={() => navigate(`/comprobante/efectivo/${cobroEfectivo.id}`)}>
-              Imprimir comprobante
-            </button>
-            <button ref={siguienteRef} onClick={nuevoCliente}>
-              Siguiente cliente (Enter)
-            </button>
-          </div>
-        </div>
+        <ResultadoEfectivo
+          vuelto={aCentavos(cobroEfectivo.vuelto)}
+          cobrado={aCentavos(cobroEfectivo.monto_snapshot)}
+          recibido={aCentavos(cobroEfectivo.monto_recibido)}
+          detalle={[cobroEfectivo]}
+          onImprimir={() => navigate(`/comprobante/efectivo/${cobroEfectivo.id}`)}
+          onSiguiente={nuevoCobro}
+        />
+      )}
+
+      {cobroAgrupado && (
+        <ResultadoEfectivo
+          vuelto={aCentavos(cobroAgrupado.vuelto)}
+          cobrado={aCentavos(cobroAgrupado.monto_total)}
+          recibido={aCentavos(cobroAgrupado.monto_recibido)}
+          detalle={cobroAgrupado.cobros}
+          onImprimir={() => navigate(`/comprobante/grupo/${cobroAgrupado.id}`)}
+          onSiguiente={nuevoCobro}
+        />
       )}
 
       {transaccion && (
@@ -406,12 +484,64 @@ export function ConsultaDeudaPage() {
             <button className="boton-secundario" onClick={() => navigate("/transacciones")}>
               Ver transacciones
             </button>
-            <button ref={siguienteRef} onClick={nuevoCliente}>
+            <button ref={siguienteRef} onClick={nuevoCobro}>
               Siguiente cliente (Enter)
             </button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ResultadoEfectivo(props: {
+  vuelto: number;
+  cobrado: number;
+  recibido: number;
+  detalle: CobroEfectivo[];
+  onImprimir: () => void;
+  onSiguiente: () => void;
+}) {
+  const { vuelto, cobrado, recibido, detalle } = props;
+  const siguiente = useRef<HTMLButtonElement>(null);
+  useEffect(() => siguiente.current?.focus(), []);
+  return (
+    <div className="tarjeta tarjeta-qr resultado">
+      <p className="resultado__ok">Cobro registrado</p>
+      <span className="detalle-fecha">Vuelto a entregar</span>
+      <p className="monto monto--vuelto">Bs. {formatoBs(vuelto)}</p>
+      <DesgloseVuelto centavos={vuelto} />
+      <p className="detalle-fecha">
+        Cobrado Bs. {formatoBs(cobrado)} · Recibido Bs. {formatoBs(recibido)}
+      </p>
+      <table className="comprobante__tabla">
+        <tbody>
+          {detalle.map((c) => {
+            const pendiente = aCentavos(c.deuda.monto) - aCentavos(c.monto_snapshot);
+            return (
+              <tr key={c.id}>
+                <td>
+                  {c.deuda.cliente.nombre}
+                  <span className="detalle-fecha">
+                    {" "}
+                    · {c.items_cobrados?.length ?? 0} comprobantes
+                    {pendiente > 0 ? ` · queda Bs. ${formatoBs(pendiente)}` : ""}
+                  </span>
+                </td>
+                <td className="num">{formatoBs(aCentavos(c.monto_snapshot))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="acciones">
+        <button className="boton-secundario" onClick={props.onImprimir}>
+          Imprimir comprobante
+        </button>
+        <button ref={siguiente} onClick={props.onSiguiente}>
+          Siguiente cliente (Enter)
+        </button>
+      </div>
     </div>
   );
 }

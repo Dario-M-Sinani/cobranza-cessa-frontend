@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { listarFacturasPagadas, obtenerPdfFacturaPagada } from "../api/cobranza";
 import { ApiError } from "../api/client";
 import type { FacturaPagada } from "../api/types";
-import { aCentavos, fechaCorta, formatoBs } from "../utils/dinero";
+import { aCentavos, fechaCorta, formatoBs, formatoKwh } from "../utils/dinero";
 
 const VISIBLES = 12;
 
@@ -61,6 +61,7 @@ export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string })
               <th>Concepto</th>
               <th>Emisión</th>
               <th>Pagada</th>
+              <th className="num">Consumo (kWh)</th>
               <th className="num">Importe (Bs.)</th>
               <th aria-label="Factura" />
             </tr>
@@ -76,6 +77,7 @@ export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string })
                 <td>
                   {fechaCorta(f.pago_fecha)} <span className="detalle-fecha">{f.pago_hora?.slice(0, 5)}</span>
                 </td>
+                <td className="num">{formatoKwh(f.consumo_kwh)}</td>
                 <td className="num">{formatoBs(aCentavos(f.importe))}</td>
                 <td className="num">
                   <button

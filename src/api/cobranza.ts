@@ -2,6 +2,7 @@ import { apiFetchBlob, apiFetch } from "./client";
 import type {
   AperturaCajaFueraDeHorario,
   Caja,
+  CobroAgrupado,
   CobroEfectivo,
   Deuda,
   Factura,
@@ -117,4 +118,22 @@ export function obtenerPdfFacturaPagada(factura: FacturaPagada) {
     method: "POST",
     body: factura,
   });
+}
+
+export interface SeleccionCobro {
+  deuda_id: number;
+  // Los N comprobantes más antiguos; sin el campo, toda la deuda.
+  cantidad_comprobantes?: number;
+}
+
+// Un solo pago en efectivo para varios clientes (todo o nada).
+export function registrarCobroAgrupado(montoRecibido: string, selecciones: SeleccionCobro[]) {
+  return apiFetch<CobroAgrupado>("/cobros-agrupados/", {
+    method: "POST",
+    body: { monto_recibido: montoRecibido, selecciones },
+  });
+}
+
+export function obtenerCobroAgrupado(id: number) {
+  return apiFetch<CobroAgrupado>(`/cobros-agrupados/${id}/`);
 }

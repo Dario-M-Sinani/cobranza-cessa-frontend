@@ -52,3 +52,10 @@ export function sugerenciasDePago(totalCentavos: number): number[] {
   const redondeos = [1000, 2000, 5000, 10000, 20000].map((paso) => Math.ceil(totalCentavos / paso) * paso);
   return [...new Set([totalCentavos, ...redondeos])].filter((v) => v >= totalCentavos).sort((a, b) => a - b).slice(0, 5);
 }
+
+// "403.00" → "403"; sin dato → "—".
+export function formatoKwh(valor: string | number | null | undefined): string {
+  if (valor === null || valor === undefined || valor === "") return "—";
+  const numero = Number(String(valor).replace(",", "."));
+  return Number.isFinite(numero) ? numero.toLocaleString("es-BO", { maximumFractionDigits: 0 }) : "—";
+}

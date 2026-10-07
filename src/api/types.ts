@@ -20,6 +20,8 @@ export interface ItemDeuda {
   importe: string;
   detalle: string;
   debito_credito: string;
+  // kWh de la factura de consumo (null: no es de consumo o el SIIC no lo informó).
+  consumo_kwh?: string | null;
 }
 
 export interface Deuda {
@@ -169,4 +171,17 @@ export interface FacturaPagada {
   pago_fecha: string;
   pago_hora: string;
   detalle: string;
+  consumo_kwh?: string | null;
+}
+
+// Un solo pago en efectivo que cubre deudas de varios clientes.
+export interface CobroAgrupado {
+  id: number;
+  usuario: string;
+  caja: number | null;
+  monto_total: string;
+  monto_recibido: string;
+  vuelto: string;
+  creado_en: string;
+  cobros: CobroEfectivo[];
 }

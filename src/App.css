@@ -599,3 +599,65 @@ kbd {
   font-size: 12px;
   align-self: flex-start;
 }
+
+.clientes-cobro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.cliente-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cliente-chip button {
+  background: transparent;
+  color: var(--texto);
+  border-radius: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.cliente-chip--activo {
+  border-color: var(--acento);
+}
+
+.cliente-chip--activo button:first-child {
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.cliente-chip__quitar {
+  color: var(--texto-tenue) !important;
+  border-left: 1px solid var(--borde) !important;
+}
+
+.resumen-carrito {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.resumen-carrito__fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.comprobante__cliente {
+  margin-top: 8px;
+}
+
+.comprobante__cliente p {
+  margin: 0;
+}
