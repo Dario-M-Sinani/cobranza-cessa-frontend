@@ -22,7 +22,10 @@ export function NavBar() {
           <Link to="/transacciones">Transacciones</Link>
           <Link to="/caja">Caja</Link>
           {(sesion.rol === "supervisor" || sesion.rol === "admin") && (
-            <Link to="/dashboard">Dashboard</Link>
+            <>
+              <Link to="/dashboard">Dashboard</Link>
+              <Link to="/pagos-web">Pagos web</Link>
+            </>
           )}
           {sesion.rol === "admin" && (
             <>

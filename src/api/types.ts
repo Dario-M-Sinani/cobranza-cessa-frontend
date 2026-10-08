@@ -185,3 +185,41 @@ export interface CobroAgrupado {
   creado_en: string;
   cobros: CobroEfectivo[];
 }
+
+export type EstadoLiquidacion = "pendiente" | "facturado" | "error";
+
+// Pago web (QR de cessa-laravel) que el gateway liquida como factura en el SIIC.
+export interface Liquidacion {
+  id: number;
+  alias: string;
+  nro_cliente: string;
+  monto: string;
+  moneda: string;
+  banco: string;
+  estado: EstadoLiquidacion;
+  intentos: number;
+  error: string;
+  cobranzas_uuid: string;
+  fecha_pago: string;
+  recibido_en: string;
+  procesado_en: string | null;
+  tiene_pdf: boolean;
+  cantidad_comprobantes: number;
+  detalle?: ItemDeuda[];
+}
+
+export interface ResumenLiquidaciones {
+  hoy: Record<EstadoLiquidacion, { cantidad: number; monto: string }>;
+  errores_abiertos: number;
+}
+
+export interface TransaccionRemota {
+  id: number;
+  estado: string;
+  lote: number;
+  caja_codigo: number;
+  total_comprobantes: number;
+  total_pagado: string;
+  fecha_pago: string | null;
+  fecha_anulacion: string | null;
+}

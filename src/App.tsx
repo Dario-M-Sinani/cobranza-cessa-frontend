@@ -9,6 +9,7 @@ import { CajaPage } from "./pages/CajaPage";
 import { ComprobantePage } from "./pages/ComprobantePage";
 import { ConsultaDeudaPage } from "./pages/ConsultaDeudaPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { LiquidacionesPage } from "./pages/LiquidacionesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { TransaccionesPage } from "./pages/TransaccionesPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
@@ -49,6 +50,14 @@ export default function App() {
           element={
             <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pagos-web"
+          element={
+            <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
+              <LiquidacionesPage />
             </ProtectedRoute>
           }
         />

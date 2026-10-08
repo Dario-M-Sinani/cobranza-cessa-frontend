@@ -684,3 +684,114 @@ kbd {
     display: none !important;
   }
 }
+
+/* ---- Pagos web (liquidaciones) ---- */
+
+.pagina--ancha {
+  max-width: 1280px;
+}
+
+.stat--boton {
+  text-align: left;
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.stat--alerta {
+  border-color: var(--peligro);
+  background: color-mix(in srgb, var(--peligro) 8%, var(--superficie));
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.filtros input,
+.filtros select {
+  padding: 6px 8px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-size: 14px;
+}
+
+.filtros label {
+  font-size: 13px;
+  color: var(--texto-tenue);
+}
+
+.segmentado {
+  display: inline-flex;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segmentado__opcion {
+  background: transparent;
+  color: var(--texto);
+  border-radius: 0;
+  padding: 6px 12px;
+}
+
+.segmentado__opcion--activa {
+  background: var(--acento);
+  color: white;
+}
+
+.fila-clic {
+  cursor: pointer;
+}
+
+.fila-clic:hover {
+  background: var(--bg);
+}
+
+.motivo {
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--texto-tenue);
+}
+
+.acciones-fila {
+  white-space: nowrap;
+}
+
+.acciones-fila button + button {
+  margin-left: 6px;
+}
+
+.fila-detalle td {
+  background: var(--bg);
+}
+
+.detalle-liquidacion {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.estado--facturado {
+  background: #e3f7e9;
+  color: var(--exito);
+}
+
+.estado--pendiente {
+  background: #fff4d6;
+  color: #8a6100;
+}
+
+@media (max-width: 860px) {
+  .detalle-liquidacion {
+    grid-template-columns: 1fr;
+  }
+}
