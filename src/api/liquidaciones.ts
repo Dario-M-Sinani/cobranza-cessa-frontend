@@ -33,3 +33,8 @@ export function reintentarLiquidacion(id: number) {
 export function pdfLiquidacion(id: number) {
   return apiFetchBlob(`/liquidaciones/${id}/pdf/`);
 }
+
+// Cierra sin factura una liquidación revisada a mano (no se vuelve a intentar pagar).
+export function descartarLiquidacion(id: number, motivo: string) {
+  return apiFetch<Liquidacion>(`/liquidaciones/${id}/descartar/`, { method: "POST", body: { motivo } });
+}

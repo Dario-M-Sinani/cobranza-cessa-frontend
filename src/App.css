@@ -795,3 +795,9 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+
+.estado--descartado {
+  background: #e4e7eb;
+  color: var(--texto-tenue);
+  text-decoration: line-through;
+}

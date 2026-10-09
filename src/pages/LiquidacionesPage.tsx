@@ -4,6 +4,7 @@ import {
   listarLiquidaciones,
   obtenerLiquidacion,
   pdfLiquidacion,
+  descartarLiquidacion,
   reintentarLiquidacion,
   resumenLiquidaciones,
   transaccionRemota,
@@ -18,6 +19,7 @@ const ESTADOS: { valor: string; etiqueta: string }[] = [
   { valor: "error", etiqueta: "Con error" },
   { valor: "pendiente", etiqueta: "Pendientes" },
   { valor: "facturado", etiqueta: "Facturados" },
+  { valor: "descartado", etiqueta: "Descartados" },
 ];
 
 function fechaHora(iso: string | null) {
@@ -93,6 +95,24 @@ export function LiquidacionesPage() {
       await cargar();
     } catch (err) {
       setAviso(err instanceof ApiError ? err.message : "No se pudo reintentar.");
+    } finally {
+      setOcupada(null);
+    }
+  }
+
+  async function descartar(l: Liquidacion) {
+    const motivo = window.prompt(
+      `Descartar el pago de ${l.nro_cliente} (Bs. ${formatoBs(aCentavos(l.monto))}): no se volverá a intentar facturar.\nMotivo:`,
+    );
+    if (!motivo || !motivo.trim()) return;
+    setOcupada(l.id);
+    setAviso(null);
+    try {
+      await descartarLiquidacion(l.id, motivo.trim());
+      setAviso(`Liquidación ${l.alias}: descartada.`);
+      await cargar();
+    } catch (err) {
+      setAviso(err instanceof ApiError ? err.message : "No se pudo descartar.");
     } finally {
       setOcupada(null);
     }
@@ -215,8 +235,8 @@ export function LiquidacionesPage() {
                     <span className={`estado estado--${l.estado}`}>{l.estado}</span>
                     {l.intentos > 0 && <span className="detalle-fecha"> · {l.intentos} int.</span>}
                   </td>
-                  <td className="motivo" title={l.error}>
-                    {l.error || "—"}
+                  <td className="motivo" title={l.nota_descarte || l.error}>
+                    {l.estado === "descartado" ? `Descartado: ${l.nota_descarte}` : l.error || "—"}
                   </td>
                   <td className="num acciones-fila" onClick={(e) => e.stopPropagation()}>
                     {l.tiene_pdf && (
@@ -224,10 +244,20 @@ export function LiquidacionesPage() {
                         PDF
                       </button>
                     )}
-                    {l.estado !== "facturado" && (
-                      <button type="button" className="boton-chico" onClick={() => reintentar(l)} disabled={ocupada === l.id}>
-                        {ocupada === l.id ? "..." : "Reintentar"}
-                      </button>
+                    {(l.estado === "error" || l.estado === "pendiente") && (
+                      <>
+                        <button type="button" className="boton-chico" onClick={() => reintentar(l)} disabled={ocupada === l.id}>
+                          {ocupada === l.id ? "..." : "Reintentar"}
+                        </button>
+                        <button
+                          type="button"
+                          className="boton-chico boton-secundario"
+                          onClick={() => descartar(l)}
+                          disabled={ocupada === l.id}
+                        >
+                          Descartar
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
