@@ -4,17 +4,15 @@ import { ApiError } from "../api/client";
 import type { FacturaPagada } from "../api/types";
 import { aCentavos, fechaCorta, formatoBs, formatoKwh } from "../utils/dinero";
 
-const VISIBLES = 12;
-
 /**
  * Todas las facturas ya pagadas del cliente (por cualquier canal: caja, banco, QR), de la
- * más nueva a la más vieja, con su PDF para reimprimir. Se carga aparte de la deuda para
- * no demorar el cobro.
+ * más nueva a la más vieja, con su PDF para reimprimir. Se muestran todas de una vez (sin
+ * "Ver todas"): el cajero tiene que ver la lista entera al buscar al cliente. Se carga
+ * aparte de la deuda para no demorar el cobro.
  */
 export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string }) {
   const [facturas, setFacturas] = useState<FacturaPagada[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [verTodas, setVerTodas] = useState(false);
   const [abriendo, setAbriendo] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,8 +42,6 @@ export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string })
     }
   }
 
-  const visibles = facturas && !verTodas ? facturas.slice(0, VISIBLES) : facturas;
-
   return (
     <section className="facturas-anteriores">
       <h3 className="tarjeta__titulo">
@@ -54,7 +50,7 @@ export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string })
       {error && <p className="mensaje-error">{error}</p>}
       {!facturas && !error && <p className="detalle-fecha">Cargando...</p>}
       {facturas && facturas.length === 0 && <p className="detalle-fecha">No hay facturas pagadas registradas.</p>}
-      {visibles && visibles.length > 0 && (
+      {facturas && facturas.length > 0 && (
         <table className="tabla tabla--compacta">
           <thead>
             <tr>
@@ -67,7 +63,7 @@ export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string })
             </tr>
           </thead>
           <tbody>
-            {visibles.map((f) => (
+            {facturas.map((f) => (
               <tr key={`${f.tipo}-${f.nro_comprobante}-${f.fecha}`}>
                 <td>
                   {f.detalle}
@@ -93,11 +89,6 @@ export function FacturasAnteriores({ codigoCliente }: { codigoCliente: string })
             ))}
           </tbody>
         </table>
-      )}
-      {facturas && facturas.length > VISIBLES && (
-        <button type="button" className="boton-secundario boton-chico" onClick={() => setVerTodas(!verTodas)}>
-          {verTodas ? "Ver menos" : `Ver todas (${facturas.length})`}
-        </button>
       )}
     </section>
   );
