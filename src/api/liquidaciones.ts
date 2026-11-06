@@ -15,6 +15,19 @@ export function listarLiquidaciones(filtro: FiltroLiquidaciones) {
   return apiFetch<Liquidacion[]>(`/liquidaciones/?${params}`);
 }
 
+export async function descargarReporteExcel(filtro: FiltroLiquidaciones) {
+  const params = new URLSearchParams(Object.entries(filtro).filter(([, v]) => v) as [string, string][]);
+  const blob = await apiFetchBlob(`/liquidaciones/exportar/?${params}`);
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  const ahora = new Date();
+  const dos = (n: number) => String(n).padStart(2, "0");
+  enlace.href = url;
+  enlace.download = `cobros-qr-${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}-${dos(ahora.getHours())}${dos(ahora.getMinutes())}${dos(ahora.getSeconds())}.xlsx`;
+  enlace.click();
+  URL.revokeObjectURL(url);
+}
+
 export function obtenerLiquidacion(id: number) {
   return apiFetch<Liquidacion>(`/liquidaciones/${id}/`);
 }

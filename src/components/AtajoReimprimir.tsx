@@ -16,7 +16,7 @@ export function AtajoReimprimir() {
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!sesion) return;
+    if (!sesion || sesion.soloConsulta) return;
     let ocupado = false;
 
     async function reimprimir() {

@@ -21,9 +21,13 @@ export function NavBar() {
       </div>
       {sesion && (
         <div className="navbar__links">
-          <Link to="/deuda">Cobrar</Link>
-          <Link to="/transacciones">Transacciones</Link>
-          <Link to="/caja">Caja</Link>
+          {!sesion.soloConsulta && (
+            <>
+              <Link to="/deuda">Cobrar</Link>
+              <Link to="/transacciones">Transacciones</Link>
+              <Link to="/caja">Caja</Link>
+            </>
+          )}
           {(sesion.rol === "supervisor" || sesion.rol === "admin") && (
             <>
               <Link to="/dashboard">Dashboard</Link>
@@ -51,6 +55,7 @@ export function NavBar() {
           <>
             <span>
               {sesion.username} · {sesion.rol}
+              {sesion.soloConsulta && " · solo consulta"}
             </span>
             <button onClick={salir}>Salir</button>
           </>

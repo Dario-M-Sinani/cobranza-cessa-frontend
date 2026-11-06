@@ -24,7 +24,7 @@ export default function App() {
         <Route
           path="/deuda"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute esDeCobro>
               <ConsultaDeudaPage />
             </ProtectedRoute>
           }
@@ -32,7 +32,7 @@ export default function App() {
         <Route
           path="/transacciones"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute esDeCobro>
               <TransaccionesPage />
             </ProtectedRoute>
           }
@@ -40,7 +40,7 @@ export default function App() {
         <Route
           path="/caja"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute esDeCobro>
               <CajaPage />
             </ProtectedRoute>
           }

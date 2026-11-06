@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api/client";
 import {
+  descargarReporteExcel,
   listarLiquidaciones,
   obtenerLiquidacion,
   pdfLiquidacion,
@@ -41,6 +42,20 @@ export function LiquidacionesPage() {
   const [remoto, setRemoto] = useState<TransaccionRemota | string | null>(null);
   const [ocupada, setOcupada] = useState<number | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
+
+  // Mismo filtro que la tabla (estado, cliente, banco, canal, fechas); hasta 5000 filas.
+  async function exportar() {
+    setExportando(true);
+    setAviso(null);
+    try {
+      await descargarReporteExcel(filtro);
+    } catch (err) {
+      setAviso(err instanceof ApiError ? err.message : "No se pudo generar el Excel.");
+    } finally {
+      setExportando(false);
+    }
+  }
 
   const cargar = useCallback(async () => {
     try {
@@ -137,9 +152,14 @@ export function LiquidacionesPage() {
     <div className="pagina pagina--ancha">
       <div className="pagina__encabezado">
         <h1>Pagos web</h1>
-        <button className="boton-secundario" onClick={cargar}>
-          Actualizar
-        </button>
+        <div className="acciones">
+          <button className="boton-secundario" onClick={exportar} disabled={exportando}>
+            {exportando ? "Generando..." : "Exportar Excel"}
+          </button>
+          <button className="boton-secundario" onClick={cargar}>
+            Actualizar
+          </button>
+        </div>
       </div>
       <p className="detalle-fecha">
         Pagos QR de la web que el gateway registra como factura en el SIIC. Se actualiza cada minuto.

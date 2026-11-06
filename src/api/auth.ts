@@ -10,6 +10,8 @@ export interface SesionUsuario {
   username: string;
   rol: Rol;
   activo: boolean;
+  // Gateway de prod: el panel es solo para ver (Pagos web, Dashboard); cobrar y caja no.
+  soloConsulta: boolean;
 }
 
 function decodePayload(token: string): Record<string, unknown> {
@@ -24,6 +26,7 @@ export function sesionDesdeToken(access: string): SesionUsuario {
     username: String(payload.username ?? ""),
     rol: payload.rol as Rol,
     activo: Boolean(payload.activo),
+    soloConsulta: payload.solo_consulta === true,
   };
 }
 
