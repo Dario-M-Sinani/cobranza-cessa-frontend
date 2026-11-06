@@ -16,7 +16,7 @@ export function NavBar() {
   return (
     <nav className="navbar">
       <div className="navbar__marca">
-        <img className="logo-cessa logo-cessa--oscuro" src="/logo-cessa-blanco.png" alt="CESSA" />
+        <img className="logo-cessa" src="/logo-cessa.png" alt="CESSA" />
         Cobranza CESSA
       </div>
       {sesion && (

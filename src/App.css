@@ -29,9 +29,18 @@
   display: none;
 }
 
-:root[data-theme="dark"] .logo-cessa--oscuro,
-.navbar .logo-cessa--oscuro {
+:root[data-theme="dark"] .logo-cessa--oscuro {
   display: block;
+}
+
+/* En la barra azul el cuadro azul del logo se perdía: va sobre una placa blanca (claro y oscuro). */
+.navbar .logo-cessa {
+  display: block;
+  height: 40px;
+  width: 40px;
+  padding: 3px;
+  background: #ffffff;
+  border-radius: 6px;
 }
 
 .login__logo {
