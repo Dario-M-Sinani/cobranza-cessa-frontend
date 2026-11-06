@@ -188,10 +188,14 @@ export interface CobroAgrupado {
 
 export type EstadoLiquidacion = "pendiente" | "facturado" | "error" | "descartado";
 
-// Pago web (QR de cessa-laravel) que el gateway liquida como factura en el SIIC.
+// Canal del pago: la web (cessa-laravel) o el bot de Telegram (alias CESSA-BOT-).
+export type OrigenLiquidacion = "cessa_laravel_web" | "bot_telegram";
+
+// Pago web (QR de cessa-laravel o del bot de Telegram) que el gateway liquida como factura en el SIIC.
 export interface Liquidacion {
   id: number;
   alias: string;
+  origen: OrigenLiquidacion;
   nro_cliente: string;
   monto: string;
   moneda: string;

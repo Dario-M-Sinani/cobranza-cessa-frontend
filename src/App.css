@@ -790,6 +790,20 @@ kbd {
   color: #8a6100;
 }
 
+/* Canal del pago web: la web o el bot de Telegram. */
+.canal {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: #e4e7eb;
+}
+
+.canal--bot_telegram {
+  background: #e1f0fb;
+  color: #1c6ea4;
+}
+
 @media (max-width: 860px) {
   .detalle-liquidacion {
     grid-template-columns: 1fr;

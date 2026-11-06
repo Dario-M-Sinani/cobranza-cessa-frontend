@@ -5,6 +5,7 @@ export interface FiltroLiquidaciones {
   estado?: string;
   cliente?: string;
   banco?: string;
+  origen?: string;
   desde?: string;
   hasta?: string;
 }

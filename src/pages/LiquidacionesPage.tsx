@@ -14,6 +14,7 @@ import type { Liquidacion, ResumenLiquidaciones, TransaccionRemota } from "../ap
 import { aCentavos, formatoBs } from "../utils/dinero";
 
 const BANCOS: Record<string, string> = { sip_bisa: "BISA", bnb: "BNB" };
+const CANALES: Record<string, string> = { cessa_laravel_web: "Web", bot_telegram: "bot-telegram" };
 const ESTADOS: { valor: string; etiqueta: string }[] = [
   { valor: "", etiqueta: "Todos" },
   { valor: "error", etiqueta: "Con error" },
@@ -195,6 +196,11 @@ export function LiquidacionesPage() {
           <option value="sip_bisa">BISA</option>
           <option value="bnb">BNB</option>
         </select>
+        <select value={filtro.origen ?? ""} onChange={(e) => setFiltro({ ...filtro, origen: e.target.value })}>
+          <option value="">Web y bot-telegram</option>
+          <option value="cessa_laravel_web">Solo web</option>
+          <option value="bot_telegram">Solo bot-telegram</option>
+        </select>
         <label>
           Desde <input type="date" value={filtro.desde ?? ""} onChange={(e) => setFiltro({ ...filtro, desde: e.target.value })} />
         </label>
@@ -213,6 +219,7 @@ export function LiquidacionesPage() {
             <tr>
               <th>Recibido</th>
               <th>Cliente</th>
+              <th>Canal</th>
               <th>Banco</th>
               <th className="num">Monto (Bs.)</th>
               <th>Estado</th>
@@ -228,6 +235,9 @@ export function LiquidacionesPage() {
                   <td>
                     {l.nro_cliente}
                     <span className="detalle-fecha"> · {l.cantidad_comprobantes} comp.</span>
+                  </td>
+                  <td>
+                    <span className={`canal canal--${l.origen}`}>{CANALES[l.origen] ?? l.origen}</span>
                   </td>
                   <td>{BANCOS[l.banco] ?? (l.banco || "—")}</td>
                   <td className="num">{formatoBs(aCentavos(l.monto))}</td>
@@ -263,7 +273,7 @@ export function LiquidacionesPage() {
                 </tr>
                 {abierta === l.id && (
                   <tr className="fila-detalle">
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <DetalleLiquidacion
                         liquidacion={detalle?.id === l.id ? detalle : null}
                         remoto={remoto}
