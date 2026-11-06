@@ -13,6 +13,7 @@ import {
 } from "../api/liquidaciones";
 import type { Liquidacion, ResumenLiquidaciones, TransaccionRemota } from "../api/types";
 import { aCentavos, formatoBs } from "../utils/dinero";
+import { Copiable } from "../components/Copiable";
 
 const BANCOS: Record<string, string> = { sip_bisa: "BISA", bnb: "BNB" };
 const CANALES: Record<string, string> = { cessa_laravel_web: "Web", bot_telegram: "bot-telegram" };
@@ -253,7 +254,7 @@ export function LiquidacionesPage() {
                 <tr className="fila-clic" onClick={() => alternarDetalle(l.id)}>
                   <td>{fechaHora(l.recibido_en)}</td>
                   <td>
-                    {l.nro_cliente}
+                    <Copiable texto={l.nro_cliente} />
                     <span className="detalle-fecha"> · {l.cantidad_comprobantes} comp.</span>
                   </td>
                   <td>
@@ -318,13 +319,33 @@ function DetalleLiquidacion(props: {
 }) {
   const { liquidacion: l, remoto } = props;
   if (!l) return <p className="detalle-fecha">Cargando...</p>;
+  const datos: [string, React.ReactNode][] = [
+    ["Alias", <Copiable texto={l.alias} />],
+    ["Generado por", l.generado_por || "—"],
+    ["Banco", BANCOS[l.banco] ?? (l.banco || "—")],
+    ["N° de orden", l.numero_orden_originante ? <Copiable texto={l.numero_orden_originante} /> : "—"],
+    ["Pagador", l.pagador || "—"],
+    ["Documento del pagador", l.documento_pagador || "—"],
+    ["QR creado", fechaHora(l.creado_en ?? null)],
+    ["Pagado", fechaHora(l.fecha_pago)],
+    ["Facturado", l.estado === "facturado" ? fechaHora(l.procesado_en) : "—"],
+    ["Intentos de facturación", String(l.intentos)],
+    ["Glosa", l.glosa || "—"],
+  ];
   return (
     <div className="detalle-liquidacion">
       <div>
-        <p className="detalle-fecha">
-          Recibo {l.alias} · pagado {fechaHora(l.fecha_pago)} · procesado {fechaHora(l.procesado_en)}
-        </p>
+        <dl className="datos-liquidacion">
+          {datos.map(([nombre, valor]) => (
+            <div key={nombre}>
+              <dt>{nombre}</dt>
+              <dd>{valor}</dd>
+            </div>
+          ))}
+        </dl>
+        {l.descripcion && <p className="descripcion-liquidacion">{l.descripcion}</p>}
         {l.error && <p className="mensaje-error">{l.error}</p>}
+        <p className="datos-liquidacion__titulo">Comprobantes pagados</p>
         <table className="tabla tabla--compacta">
           <tbody>
             {(l.detalle ?? []).map((item, i) => (

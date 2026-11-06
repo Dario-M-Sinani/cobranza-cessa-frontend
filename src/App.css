@@ -892,3 +892,67 @@ kbd {
   background: #10314d;
   color: #7cc4f5;
 }
+
+/* Texto copiable (N° de cliente, alias, N° de orden): se copia con un clic. */
+.copiable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: copy;
+}
+
+.copiable:hover {
+  color: var(--acento);
+  text-decoration: underline dotted;
+}
+
+.copiable__aviso {
+  font-size: 11px;
+  color: var(--texto-tenue);
+  white-space: nowrap;
+}
+
+/* Detalle de un pago web: datos en una grilla que se acomoda al ancho (sin scroll horizontal). */
+.datos-liquidacion {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 12px;
+}
+
+.datos-liquidacion dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--texto-tenue);
+}
+
+.datos-liquidacion dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.datos-liquidacion__titulo {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texto-tenue);
+}
+
+.descripcion-liquidacion {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.detalle-liquidacion p,
+.detalle-liquidacion td {
+  overflow-wrap: anywhere;
+}

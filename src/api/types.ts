@@ -211,6 +211,14 @@ export interface Liquidacion {
   cantidad_comprobantes: number;
   nota_descarte: string;
   detalle?: ItemDeuda[];
+  // Solo en el detalle (lo mismo que el reporte Excel):
+  numero_orden_originante?: string;
+  generado_por?: string;
+  glosa?: string;
+  descripcion?: string;
+  creado_en?: string | null;
+  pagador?: string;
+  documento_pagador?: string;
 }
 
 export interface ResumenLiquidaciones {
