@@ -6,19 +6,26 @@
   --borde: #dfe3e8;
   --texto: #1f2933;
   --texto-tenue: #616e7c;
-  --acento: #1e5eff;
+  /* Marca CESSA (cessa.com.bo): azul #004c98, celeste #2196f3, amarillo #ffe71e. */
+  --acento: #004c98;
+  --marca-amarillo: #ffe71e;
+  --barra: #004c98;
+  --barra-texto: #ffffff;
   --peligro: #d64545;
   --exito: #1f9d55;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #14161a;
-  --superficie: #1e2126;
-  --borde: #333844;
-  --texto: #e8eaed;
-  --texto-tenue: #9aa2ad;
-  --acento: #5b93ff;
+  --bg: #0d1520;
+  --superficie: #16212f;
+  --borde: #2a3a50;
+  --texto: #e8eef5;
+  --texto-tenue: #9fb0c3;
+  --acento: #4ea8ec;
+  --marca-amarillo: #ffe71e;
+  --barra: #00335f;
+  --barra-texto: #ffffff;
   --peligro: #ff7a7a;
   --exito: #3ecf7e;
 }

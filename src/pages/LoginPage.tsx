@@ -32,7 +32,9 @@ export function LoginPage() {
   return (
     <div className="pantalla-login">
       <form className="tarjeta" onSubmit={onSubmit}>
-        <h1>Cobranza CESSA</h1>
+        <img className="logo-cessa logo-cessa--claro login__logo" src="/logo-cessa.png" alt="CESSA" />
+        <img className="logo-cessa logo-cessa--oscuro login__logo" src="/logo-cessa-blanco.png" alt="CESSA" />
+        <h1 className="login__titulo">Cobranza CESSA</h1>
         <label>
           Usuario
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />

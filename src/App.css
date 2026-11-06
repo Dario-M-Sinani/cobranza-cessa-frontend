@@ -3,13 +3,46 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 12px 24px;
-  background: var(--superficie);
-  border-bottom: 1px solid var(--borde);
+  padding: 10px 24px;
+  background: var(--barra);
+  color: var(--barra-texto);
+  border-bottom: 3px solid var(--marca-amarillo);
 }
 
 .navbar__marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Logo CESSA: el de texto negro en claro y el de texto blanco en oscuro (y sobre la barra azul). */
+.logo-cessa {
+  display: block;
+  height: 36px;
+  width: 36px;
+}
+
+.logo-cessa--oscuro,
+:root[data-theme="dark"] .logo-cessa--claro {
+  display: none;
+}
+
+:root[data-theme="dark"] .logo-cessa--oscuro,
+.navbar .logo-cessa--oscuro {
+  display: block;
+}
+
+.login__logo {
+  height: 96px;
+  width: 96px;
+  margin: 0 auto 8px;
+}
+
+.login__titulo {
+  text-align: center;
+  color: var(--acento);
 }
 
 .navbar__links {
@@ -19,12 +52,14 @@
 }
 
 .navbar__links a {
-  color: var(--texto);
+  color: var(--barra-texto);
   text-decoration: none;
+  opacity: 0.9;
 }
 
 .navbar__links a:hover {
-  color: var(--acento);
+  color: var(--marca-amarillo);
+  opacity: 1;
 }
 
 .theme-toggle {
@@ -32,21 +67,21 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid var(--borde);
-  color: var(--texto);
+  border: 1px solid color-mix(in srgb, var(--barra-texto) 45%, transparent);
+  color: var(--barra-texto);
   padding: 6px;
   border-radius: 6px;
 }
 
 .theme-toggle:hover {
-  background: var(--bg);
+  background: color-mix(in srgb, var(--barra-texto) 15%, transparent);
 }
 
 .navbar__usuario {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--texto-tenue);
+  color: color-mix(in srgb, var(--barra-texto) 85%, transparent);
   font-size: 14px;
 }
 
@@ -814,4 +849,37 @@ kbd {
   background: #e4e7eb;
   color: var(--texto-tenue);
   text-decoration: line-through;
+}
+
+/* Modo oscuro: las etiquetas de estado y canal con fondos oscuros (los pastel claros encandilan). */
+:root[data-theme="dark"] .estado,
+:root[data-theme="dark"] .estado--cerrada,
+:root[data-theme="dark"] .estado--descartado,
+:root[data-theme="dark"] .canal {
+  background: #243245;
+  color: var(--texto-tenue);
+}
+
+:root[data-theme="dark"] .estado--pagado,
+:root[data-theme="dark"] .estado--abierta,
+:root[data-theme="dark"] .estado--facturado {
+  background: #123524;
+  color: var(--exito);
+}
+
+:root[data-theme="dark"] .estado--error,
+:root[data-theme="dark"] .estado--vencido {
+  background: #3d1c1c;
+  color: var(--peligro);
+}
+
+:root[data-theme="dark"] .estado--pendiente,
+:root[data-theme="dark"] .estado--pendiente_confirmacion {
+  background: #3a2f12;
+  color: #f3d58a;
+}
+
+:root[data-theme="dark"] .canal--bot_telegram {
+  background: #10314d;
+  color: #7cc4f5;
 }
