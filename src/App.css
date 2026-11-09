@@ -860,6 +860,36 @@ kbd {
   text-decoration: line-through;
 }
 
+/* QR generados que no se pagaron: vencidos, anulados o todavía vigentes. */
+.estado--expirado {
+  background: #fdebd8;
+  color: #9a4a00;
+}
+
+.estado--anulado {
+  background: #e4e7eb;
+  color: var(--texto-tenue);
+}
+
+.estado--vigente {
+  background: #e1f0fb;
+  color: #1c6ea4;
+}
+
+.fila-qr td {
+  color: var(--texto-tenue);
+}
+
+:root[data-theme="dark"] .estado--expirado {
+  background: #3b2614;
+  color: #f2b27a;
+}
+
+:root[data-theme="dark"] .estado--vigente {
+  background: #10314d;
+  color: #7cc4f5;
+}
+
 /* Modo oscuro: las etiquetas de estado y canal con fondos oscuros (los pastel claros encandilan). */
 :root[data-theme="dark"] .estado,
 :root[data-theme="dark"] .estado--cerrada,

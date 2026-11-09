@@ -23,7 +23,17 @@ const ESTADOS: { valor: string; etiqueta: string }[] = [
   { valor: "pendiente", etiqueta: "Pendientes" },
   { valor: "facturado", etiqueta: "Facturados" },
   { valor: "descartado", etiqueta: "Descartados" },
+  { valor: "expirado", etiqueta: "QR expirados" },
+  { valor: "anulado", etiqueta: "QR anulados" },
 ];
+// Cómo se muestra cada estado (los de QR sin pagar, como el reporte de la web).
+const ETIQUETAS_ESTADO: Record<string, string> = {
+  expirado: "Expirado",
+  anulado: "Anulado",
+  vigente: "Sin pagar (vigente)",
+};
+
+const claveFila = (l: Liquidacion) => `${l.tipo ?? "pago"}-${l.id}`;
 
 function fechaHora(iso: string | null) {
   return iso ? new Date(iso).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -38,7 +48,7 @@ export function LiquidacionesPage() {
   const [liquidaciones, setLiquidaciones] = useState<Liquidacion[] | null>(null);
   const [resumen, setResumen] = useState<ResumenLiquidaciones | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [abierta, setAbierta] = useState<number | null>(null);
+  const [abierta, setAbierta] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Liquidacion | null>(null);
   const [remoto, setRemoto] = useState<TransaccionRemota | string | null>(null);
   const [ocupada, setOcupada] = useState<number | null>(null);
@@ -75,16 +85,19 @@ export function LiquidacionesPage() {
     return () => clearInterval(intervalo);
   }, [cargar]);
 
-  async function alternarDetalle(id: number) {
+  async function alternarDetalle(l: Liquidacion) {
     setRemoto(null);
-    if (abierta === id) {
+    const clave = claveFila(l);
+    if (abierta === clave) {
       setAbierta(null);
       return;
     }
-    setAbierta(id);
-    setDetalle(null);
+    setAbierta(clave);
+    // Un QR sin pagar ya trae su detalle en la lista.
+    setDetalle(l.tipo === "qr" ? l : null);
+    if (l.tipo === "qr") return;
     try {
-      setDetalle(await obtenerLiquidacion(id));
+      setDetalle(await obtenerLiquidacion(l.id));
     } catch (err) {
       setAviso(err instanceof ApiError ? err.message : "No se pudo cargar el detalle.");
     }
@@ -163,7 +176,8 @@ export function LiquidacionesPage() {
         </div>
       </div>
       <p className="detalle-fecha">
-        Pagos QR de la web que el gateway registra como factura en el SIIC. Se actualiza cada minuto.
+        Pagos QR de la web y del bot que el gateway registra como factura en el SIIC, y los QR que se generaron y no se
+        pagaron (expirados o anulados). Se actualiza cada minuto.
       </p>
 
       {hoy && resumen && (
@@ -189,6 +203,20 @@ export function LiquidacionesPage() {
               {resumen.errores_abiertos > 0 ? "Pagaron y no tienen factura: revisar" : "Nada pendiente"}
             </span>
           </button>
+          {resumen.qr_hoy && (
+            <button
+              type="button"
+              className="tarjeta stat stat--boton"
+              onClick={() => setFiltro({ ...filtro, estado: "expirado" })}
+            >
+              <p className="stat__etiqueta">QR expirados hoy</p>
+              <strong className="monto">{resumen.qr_hoy.expirado.cantidad}</strong>
+              <span className="detalle-fecha">
+                Bs. {formatoBs(aCentavos(resumen.qr_hoy.expirado.monto))} · {resumen.qr_hoy.vigente.cantidad} sin pagar
+                vigentes
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -250,8 +278,8 @@ export function LiquidacionesPage() {
           </thead>
           <tbody>
             {liquidaciones.map((l) => (
-              <Fragment key={l.id}>
-                <tr className="fila-clic" onClick={() => alternarDetalle(l.id)}>
+              <Fragment key={claveFila(l)}>
+                <tr className={l.tipo === "qr" ? "fila-clic fila-qr" : "fila-clic"} onClick={() => alternarDetalle(l)}>
                   <td>{fechaHora(l.recibido_en)}</td>
                   <td>
                     <Copiable texto={l.nro_cliente} />
@@ -263,11 +291,15 @@ export function LiquidacionesPage() {
                   <td>{BANCOS[l.banco] ?? (l.banco || "—")}</td>
                   <td className="num">{formatoBs(aCentavos(l.monto))}</td>
                   <td>
-                    <span className={`estado estado--${l.estado}`}>{l.estado}</span>
+                    <span className={`estado estado--${l.estado}`}>{ETIQUETAS_ESTADO[l.estado] ?? l.estado}</span>
                     {l.intentos > 0 && <span className="detalle-fecha"> · {l.intentos} int.</span>}
                   </td>
-                  <td className="motivo" title={l.nota_descarte || l.error}>
-                    {l.estado === "descartado" ? `Descartado: ${l.nota_descarte}` : l.error || "—"}
+                  <td className="motivo" title={l.observacion || l.nota_descarte || l.error}>
+                    {l.tipo === "qr"
+                      ? l.observacion || "No se pagó"
+                      : l.estado === "descartado"
+                        ? `Descartado: ${l.nota_descarte}`
+                        : l.error || "—"}
                   </td>
                   <td className="num acciones-fila" onClick={(e) => e.stopPropagation()}>
                     {l.tiene_pdf && (
@@ -275,7 +307,7 @@ export function LiquidacionesPage() {
                         PDF
                       </button>
                     )}
-                    {(l.estado === "error" || l.estado === "pendiente") && (
+                    {l.tipo !== "qr" && (l.estado === "error" || l.estado === "pendiente") && (
                       <>
                         <button type="button" className="boton-chico" onClick={() => reintentar(l)} disabled={ocupada === l.id}>
                           {ocupada === l.id ? "..." : "Reintentar"}
@@ -292,11 +324,11 @@ export function LiquidacionesPage() {
                     )}
                   </td>
                 </tr>
-                {abierta === l.id && (
+                {abierta === claveFila(l) && (
                   <tr className="fila-detalle">
                     <td colSpan={8}>
                       <DetalleLiquidacion
-                        liquidacion={detalle?.id === l.id ? detalle : null}
+                        liquidacion={detalle && claveFila(detalle) === claveFila(l) ? detalle : null}
                         remoto={remoto}
                         onVerRemoto={() => verRemoto(l.id)}
                       />
@@ -319,6 +351,7 @@ function DetalleLiquidacion(props: {
 }) {
   const { liquidacion: l, remoto } = props;
   if (!l) return <p className="detalle-fecha">Cargando...</p>;
+  if (l.tipo === "qr") return <DetalleQrSinPagar qr={l} />;
   const datos: [string, React.ReactNode][] = [
     ["Alias", <Copiable texto={l.alias} />],
     ["Generado por", l.generado_por || "—"],
@@ -346,21 +379,7 @@ function DetalleLiquidacion(props: {
         {l.descripcion && <p className="descripcion-liquidacion">{l.descripcion}</p>}
         {l.error && <p className="mensaje-error">{l.error}</p>}
         <p className="datos-liquidacion__titulo">Comprobantes pagados</p>
-        <table className="tabla tabla--compacta">
-          <tbody>
-            {(l.detalle ?? []).map((item, i) => (
-              <tr key={`${item.nro_comprobante}-${i}`}>
-                <td>
-                  {item.detalle} <span className="detalle-fecha">N° {item.nro_comprobante}</span>
-                </td>
-                <td className="num">
-                  {item.debito_credito?.toUpperCase() === "CREDITO" ? "−" : ""}
-                  {formatoBs(Math.abs(aCentavos(item.importe)))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TablaComprobantes detalle={l.detalle} />
       </div>
       <div>
         {l.cobranzas_uuid ? (
@@ -384,6 +403,59 @@ function DetalleLiquidacion(props: {
           <p className="detalle-fecha">Todavía no tiene transacción en api-cobranzas.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function TablaComprobantes({ detalle }: { detalle: Liquidacion["detalle"] }) {
+  return (
+    <table className="tabla tabla--compacta">
+      <tbody>
+        {(detalle ?? []).map((item, i) => (
+          <tr key={`${item.nro_comprobante}-${i}`}>
+            <td>
+              {item.detalle} <span className="detalle-fecha">N° {item.nro_comprobante}</span>
+            </td>
+            <td className="num">
+              {item.debito_credito?.toUpperCase() === "CREDITO" ? "−" : ""}
+              {formatoBs(Math.abs(aCentavos(item.importe)))}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// QR generado que no se pagó: no hay pago, pagador, factura ni transacción que mostrar.
+function DetalleQrSinPagar({ qr }: { qr: Liquidacion }) {
+  const datos: [string, React.ReactNode][] = [
+    ["Alias", <Copiable texto={qr.alias} />],
+    ["Generado por", qr.generado_por || "—"],
+    ["Banco", BANCOS[qr.banco] ?? (qr.banco || "—")],
+    ["QR creado", fechaHora(qr.creado_en ?? null)],
+    ["Vence", fechaHora(qr.vence_en ?? null)],
+    ["Estado", ETIQUETAS_ESTADO[qr.estado] ?? qr.estado],
+    ["Glosa", qr.glosa || "—"],
+  ];
+  return (
+    <div>
+      <dl className="datos-liquidacion">
+        {datos.map(([nombre, valor]) => (
+          <div key={nombre}>
+            <dt>{nombre}</dt>
+            <dd>{valor}</dd>
+          </div>
+        ))}
+      </dl>
+      {qr.descripcion && <p className="descripcion-liquidacion">{qr.descripcion}</p>}
+      {qr.observacion && <p className="detalle-fecha">{qr.observacion}</p>}
+      {(qr.detalle ?? []).length > 0 && (
+        <>
+          <p className="datos-liquidacion__titulo">Comprobantes del QR</p>
+          <TablaComprobantes detalle={qr.detalle} />
+        </>
+      )}
     </div>
   );
 }

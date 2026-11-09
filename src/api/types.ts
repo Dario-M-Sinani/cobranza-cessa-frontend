@@ -188,19 +188,27 @@ export interface CobroAgrupado {
 
 export type EstadoLiquidacion = "pendiente" | "facturado" | "error" | "descartado";
 
+// Estado de un QR generado que no se pagó (no tiene liquidación).
+export type EstadoQrSinPagar = "expirado" | "anulado" | "vigente";
+
 // Canal del pago: la web (cessa-laravel) o el bot de Telegram (alias CESSA-BOT-).
 export type OrigenLiquidacion = "cessa_laravel_web" | "bot_telegram";
 
 // Pago web (QR de cessa-laravel o del bot de Telegram) que el gateway liquida como factura en el SIIC.
+// En la lista también vienen los QR que no se pagaron (tipo "qr"): sin reintento, PDF ni
+// transacción, con el detalle ya incluido.
 export interface Liquidacion {
   id: number;
+  tipo: "pago" | "qr";
   alias: string;
   origen: OrigenLiquidacion;
   nro_cliente: string;
   monto: string;
   moneda: string;
   banco: string;
-  estado: EstadoLiquidacion;
+  estado: EstadoLiquidacion | EstadoQrSinPagar;
+  observacion?: string;
+  vence_en?: string | null;
   intentos: number;
   error: string;
   cobranzas_uuid: string;
@@ -223,6 +231,7 @@ export interface Liquidacion {
 
 export interface ResumenLiquidaciones {
   hoy: Record<EstadoLiquidacion, { cantidad: number; monto: string }>;
+  qr_hoy?: Record<EstadoQrSinPagar, { cantidad: number; monto: string }>;
   errores_abiertos: number;
 }
 
