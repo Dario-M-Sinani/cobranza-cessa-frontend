@@ -848,6 +848,11 @@ kbd {
   color: #1c6ea4;
 }
 
+.canal--kiosco {
+  background: #fff6c2;
+  color: #7a6200;
+}
+
 @media (max-width: 860px) {
   .detalle-liquidacion {
     grid-template-columns: 1fr;
@@ -921,6 +926,11 @@ kbd {
 :root[data-theme="dark"] .canal--bot_telegram {
   background: #10314d;
   color: #7cc4f5;
+}
+
+:root[data-theme="dark"] .canal--kiosco {
+  background: #3a3310;
+  color: #ffe71e;
 }
 
 /* Texto copiable (N° de cliente, alias, N° de orden): se copia con un clic. */

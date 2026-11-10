@@ -16,7 +16,7 @@ import { aCentavos, formatoBs } from "../utils/dinero";
 import { Copiable } from "../components/Copiable";
 
 const BANCOS: Record<string, string> = { sip_bisa: "BISA", bnb: "BNB" };
-const CANALES: Record<string, string> = { cessa_laravel_web: "Web", bot_telegram: "bot-telegram" };
+const CANALES: Record<string, string> = { cessa_laravel_web: "Web", bot_telegram: "bot-telegram", kiosco: "Cajero automático" };
 const ESTADOS: { valor: string; etiqueta: string }[] = [
   { valor: "", etiqueta: "Todos" },
   { valor: "error", etiqueta: "Con error" },
@@ -246,9 +246,10 @@ export function LiquidacionesPage() {
           <option value="bnb">BNB</option>
         </select>
         <select value={filtro.origen ?? ""} onChange={(e) => setFiltro({ ...filtro, origen: e.target.value })}>
-          <option value="">Web y bot-telegram</option>
+          <option value="">Todos los canales</option>
           <option value="cessa_laravel_web">Solo web</option>
           <option value="bot_telegram">Solo bot-telegram</option>
+          <option value="kiosco">Solo cajero automático</option>
         </select>
         <label>
           Desde <input type="date" value={filtro.desde ?? ""} onChange={(e) => setFiltro({ ...filtro, desde: e.target.value })} />
@@ -365,6 +366,10 @@ function DetalleLiquidacion(props: {
     ["Intentos de facturación", String(l.intentos)],
     ["Glosa", l.glosa || "—"],
   ];
+  if (l.cajero) {
+    datos.splice(2, 0, ["Cajero automático", l.cajero.pantalla], ["Cliente", l.cajero.nombre_cliente || "—"]);
+    if (l.cajero.nro_factura) datos.push(["N° de factura", <Copiable texto={l.cajero.nro_factura} />]);
+  }
   return (
     <div className="detalle-liquidacion">
       <div>
