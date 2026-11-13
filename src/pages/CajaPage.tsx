@@ -2,16 +2,21 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   abrirCaja,
   abrirCajaParaCajero,
+  abrirReporteCierre,
   cerrarCaja,
   listarAperturasFueraDeHorario,
+  listarAgenciasCaja,
   listarCajas,
   obtenerResumenCaja,
   reabrirCaja,
 } from "../api/cobranza";
 import { resetearPasswordCajero } from "../api/usuarios";
 import { ApiError } from "../api/client";
-import type { AperturaCajaFueraDeHorario, Caja, ResumenCaja } from "../api/types";
+import type { AgenciasCaja, AperturaCajaFueraDeHorario, Caja, ResumenCaja } from "../api/types";
+import { aCentavos, formatoBs } from "../utils/dinero";
 import { useAuth } from "../context/AuthContext";
+import { CierreCaja } from "../components/CierreCaja";
+import { Icono } from "../components/Icono";
 
 const ETIQUETAS_ESTADO_CAJA: Record<string, string> = {
   abierta: "Abierta",
@@ -35,6 +40,10 @@ export function CajaPage() {
   const [motivosPorCaja, setMotivosPorCaja] = useState<Record<number, string>>({});
   const [cajeroIdParaAbrir, setCajeroIdParaAbrir] = useState("");
   const [motivoParaAbrir, setMotivoParaAbrir] = useState("");
+  // Caja del SIIC (cajera de la Nest): agencia y efectivo con que empieza el turno.
+  const [agencias, setAgencias] = useState<AgenciasCaja | null>(null);
+  const [agenciaSigla, setAgenciaSigla] = useState("");
+  const [montoInicial, setMontoInicial] = useState("");
 
   const [usernameParaReset, setUsernameParaReset] = useState("");
   const [passwordParaReset, setPasswordParaReset] = useState("");
@@ -65,13 +74,30 @@ export function CajaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const miCajaAbierta = sesion?.rol === "cajera" ? cajas.find((c) => c.estado === "abierta") : undefined;
+  useEffect(() => {
+    if (sesion?.rol !== "cajera" || !sesion.cajaSiic) return;
+    listarAgenciasCaja()
+      .then((datos) => {
+        setAgencias(datos);
+        if (datos.agencias.length === 1) setAgenciaSigla(datos.agencias[0].sigla);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar las agencias."));
+  }, [sesion?.rol, sesion?.cajaSiic]);
 
-  async function onAbrirMiCaja() {
+  const miCajaAbierta = sesion?.rol === "cajera" ? cajas.find((c) => c.estado === "abierta") : undefined;
+  // El SIIC da una sola caja por día: si la de hoy ya se cerró, no se puede abrir otra.
+  const hoy = new Date().toDateString();
+  const cajaSiicCerradaHoy =
+    sesion?.rol === "cajera" && sesion.cajaSiic && !miCajaAbierta
+      ? cajas.find((c) => c.estado === "cerrada" && c.caja_codigo && new Date(c.creada_en).toDateString() === hoy)
+      : undefined;
+
+  async function onAbrirMiCaja(evento?: FormEvent) {
+    evento?.preventDefault();
     setAccionEnCurso("nueva");
     setError(null);
     try {
-      await abrirCaja();
+      await abrirCaja(agenciaSigla, montoInicial.replace(",", "."));
       await cargar();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo abrir la caja.");
@@ -166,30 +192,116 @@ export function CajaPage() {
       </div>
       {error && <p className="mensaje-error">{error}</p>}
 
-      {sesion?.rol === "cajera" && (
-        <div className="tarjeta tarjeta--ancha">
-          {miCajaAbierta ? (
-            <>
-              <p>
-                Tu caja está <span className="estado estado--abierta">Abierta</span> desde{" "}
-                {formatearFecha(miCajaAbierta.abierta_en)}.
-              </p>
-              <div className="acciones">
+      {sesion?.rol === "cajera" &&
+        (miCajaAbierta ? (
+          <section className="turno">
+            <div className="turno__icono">
+              <Icono nombre="caja" tamano={34} />
+            </div>
+            <div>
+              <p className="turno__titulo">Tu caja de hoy</p>
+              <p className="turno__numero">{miCajaAbierta.caja_codigo ? `Caja ${miCajaAbierta.caja_codigo}` : "Caja abierta"}</p>
+              <div className="turno__datos">
+                {miCajaAbierta.caja_codigo && (
+                  <span>
+                    <Icono nombre="agencia" tamano={16} />
+                    {miCajaAbierta.agencia_descripcion || miCajaAbierta.agencia_sigla}
+                  </span>
+                )}
+                <span>
+                  <Icono nombre="reloj" tamano={16} />
+                  Desde {formatearFecha(miCajaAbierta.abierta_en)}
+                </span>
+                {miCajaAbierta.caja_codigo && (
+                  <span>
+                    <Icono nombre="billete" tamano={16} />
+                    Monto inicial Bs. {formatoBs(aCentavos(miCajaAbierta.monto_inicial))}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="turno__lado">
+              <span className="turno__estado">Abierta</span>
+              {/* Caja del SIIC: se cierra con arqueo (abajo). Caja solo local: como siempre. */}
+              {!miCajaAbierta.caja_codigo && (
                 <button disabled={accionEnCurso === miCajaAbierta.id} onClick={() => onCerrar(miCajaAbierta.id)}>
                   Cerrar caja
                 </button>
+              )}
+            </div>
+          </section>
+        ) : cajaSiicCerradaHoy ? (
+          <section className="turno turno--cerrada">
+            <div className="turno__icono">
+              <Icono nombre="candado" tamano={32} />
+            </div>
+            <div>
+              <p className="turno__titulo">Tu caja de hoy</p>
+              <p className="turno__numero">Caja {cajaSiicCerradaHoy.caja_codigo} cerrada</p>
+              <div className="turno__datos">
+                <span>
+                  <Icono nombre="agencia" tamano={16} />
+                  {cajaSiicCerradaHoy.agencia_descripcion || cajaSiicCerradaHoy.agencia_sigla}
+                </span>
+                <span>
+                  <Icono nombre="reloj" tamano={16} />
+                  Cerrada {formatearFecha(cajaSiicCerradaHoy.cerrada_en)}
+                </span>
               </div>
-            </>
-          ) : (
-            <>
-              <p>No tenés una caja abierta.</p>
-              <button disabled={accionEnCurso === "nueva"} onClick={onAbrirMiCaja}>
-                Abrir caja
-              </button>
-            </>
-          )}
-        </div>
-      )}
+              <p className="turno__nota">
+                El SIIC no deja abrir otra caja el mismo día: mañana abres una nueva. Si hace falta seguir cobrando hoy,
+                avisa a tu supervisora.
+              </p>
+            </div>
+            <span className="turno__estado">Cerrada</span>
+          </section>
+        ) : (
+          <section className="tarjeta tarjeta--ancha">
+            <h2 className="tarjeta__titulo">
+              <Icono nombre="caja" /> Abrir caja
+            </h2>
+            <p className="detalle-fecha">
+              {sesion.cajaSiic
+                ? "Elige la agencia donde vas a cobrar y el efectivo con el que empiezas (cambio). Con la caja abierta ya puedes cobrar."
+                : "No tienes una caja abierta. Ábrela para empezar a cobrar."}
+            </p>
+            {sesion.cajaSiic ? (
+              <form className="apertura" onSubmit={onAbrirMiCaja}>
+                <label>
+                  Agencia
+                  <select required value={agenciaSigla} onChange={(e) => setAgenciaSigla(e.target.value)}>
+                    <option value="">{agencias ? "Elige la agencia" : "Cargando..."}</option>
+                    {agencias?.agencias.map((a) => (
+                      <option key={a.sigla} value={a.sigla}>
+                        {a.descripcion} ({a.sigla})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Monto inicial (Bs.)
+                  <input
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={montoInicial}
+                    onChange={(e) => setMontoInicial(e.target.value.replace(/[^0-9.,]/g, ""))}
+                  />
+                </label>
+                <button type="submit" disabled={accionEnCurso === "nueva" || !agenciaSigla}>
+                  {accionEnCurso === "nueva" ? "Abriendo..." : "Abrir caja"}
+                </button>
+              </form>
+            ) : (
+              <div className="acciones">
+                <button disabled={accionEnCurso === "nueva"} onClick={() => onAbrirMiCaja()}>
+                  Abrir caja
+                </button>
+              </div>
+            )}
+          </section>
+        ))}
+
+      {miCajaAbierta?.caja_codigo && <CierreCaja caja={miCajaAbierta} onCerrada={cargar} />}
 
       {esSupervisorOAdmin && resumenCajaId !== null && (
         <div className="tarjeta tarjeta--ancha">
@@ -220,6 +332,39 @@ export function CajaPage() {
                     <p className="monto">{resumen.facturas_registradas}</p>
                   </div>
                 </div>
+                {resumen.cierre_siic && (
+                  <>
+                    <h3 className="tarjeta__titulo">
+                      <Icono nombre="balanza" /> Cierre en el SIIC
+                    </h3>
+                    <div className="tarjetas-resumen">
+                      <div className="tarjeta stat">
+                        <p className="stat__etiqueta">Recaudado (contable)</p>
+                        <p className="monto">Bs. {formatoBs(aCentavos(resumen.cierre_siic.recaudado_bs))}</p>
+                      </div>
+                      <div className="tarjeta stat">
+                        <p className="stat__etiqueta">Efectivo contado</p>
+                        <p className="monto">Bs. {formatoBs(aCentavos(resumen.cierre_siic.efectivo_bs))}</p>
+                      </div>
+                      <div className="tarjeta stat">
+                        <p className="stat__etiqueta">Cheques y otros valores</p>
+                        <p className="monto">
+                          Bs. {formatoBs(aCentavos(resumen.cierre_siic.cheques_bs) + aCentavos(resumen.cierre_siic.otros_valores))}
+                        </p>
+                      </div>
+                      <div className={`tarjeta stat ${aCentavos(resumen.cierre_siic.diferencia_bs) === 0 ? "stat--ok" : "stat--alerta"}`}>
+                        <p className="stat__etiqueta">Diferencia</p>
+                        <p className={`monto ${aCentavos(resumen.cierre_siic.diferencia_bs) === 0 ? "" : "monto--alerta"}`}>
+                          Bs. {formatoBs(aCentavos(resumen.cierre_siic.diferencia_bs))}
+                        </p>
+                      </div>
+                    </div>
+                    <button className="boton-secundario" onClick={() => abrirReporteCierre(resumenCajaId).catch((err) =>
+                      setError(err instanceof ApiError ? err.message : "No se pudo abrir el reporte."))}>
+                      Reporte de cierre (PDF)
+                    </button>
+                  </>
+                )}
                 {resumen.qr_pendientes_de_confirmar > 0 && (
                   <p className="mensaje-error">
                     {resumen.qr_pendientes_de_confirmar} QR generado(s) en este turno todavía sin confirmar.
@@ -291,6 +436,7 @@ export function CajaPage() {
               <tr>
                 <th>#</th>
                 <th>Cajero</th>
+                <th>Caja SIIC</th>
                 <th>Estado</th>
                 <th>Abierta</th>
                 <th>Cerrada</th>
@@ -303,6 +449,7 @@ export function CajaPage() {
                 <tr key={c.id}>
                   <td>{c.id}</td>
                   <td>{c.cajero}</td>
+                  <td title={c.agencia_descripcion}>{c.caja_codigo ? `${c.caja_codigo} · ${c.agencia_sigla}` : "—"}</td>
                   <td>
                     <span className={`estado estado--${c.estado}`}>{ETIQUETAS_ESTADO_CAJA[c.estado]}</span>
                   </td>
@@ -319,7 +466,12 @@ export function CajaPage() {
                   )}
                   {esSupervisorOAdmin && (
                     <td className="acciones">
-                      {c.estado === "cerrada" && (
+                      {c.estado === "cerrada" && c.caja_codigo && (
+                        <span className="detalle-fecha" title="El SIIC no reabre una caja cerrada">
+                          Cerrada en el SIIC
+                        </span>
+                      )}
+                      {c.estado === "cerrada" && !c.caja_codigo && (
                         <>
                           <input
                             type="text"

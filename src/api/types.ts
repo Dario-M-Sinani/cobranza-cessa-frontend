@@ -31,6 +31,14 @@ export interface Deuda {
   fecha_consulta: string;
   // En el orden en que SIIC exige pagarlos: se cobra siempre un prefijo.
   items: ItemDeuda[];
+  // Cuenta, dirección, medidor, categoría y estado del suministro (vacío en consultas viejas).
+  datos_cliente?: {
+    nro_cuenta?: string;
+    direccion?: string;
+    nro_medidor?: string;
+    categoria?: string;
+    estado?: string;
+  };
 }
 
 export type EstadoTransaccion =
@@ -79,6 +87,16 @@ export interface Caja {
   abierta_por: string;
   cerrada_en: string | null;
   cerrada_por: string | null;
+  // Caja del SIIC (cajeras de la Nest): vacíos en las cajas solo locales.
+  caja_codigo: string;
+  agencia_sigla: string;
+  agencia_descripcion: string;
+  monto_inicial: string;
+}
+
+export interface AgenciasCaja {
+  requiere_agencia: boolean;
+  agencias: { sigla: string; descripcion: string }[];
 }
 
 export interface AperturaCajaFueraDeHorario {
@@ -87,6 +105,31 @@ export interface AperturaCajaFueraDeHorario {
   usuario: string;
   motivo: string;
   creado_en: string;
+}
+
+// Pagado con otro documento en vez de billetes (vacío = efectivo).
+export interface DocumentoCobro {
+  ente_id: number;
+  ente: string;
+  banco_id: number;
+  banco: string;
+  numero: string;
+  fecha_registro: string;
+  fecha_vencimiento: string;
+}
+
+export interface FormasPago {
+  disponible: boolean;
+  entes: { id: number; descripcion: string }[];
+  bancos: { id: number; descripcion: string }[];
+}
+
+export interface NuevoDocumentoCobro {
+  ente_id: number;
+  banco_id: number;
+  numero: string;
+  fecha_registro?: string;
+  fecha_vencimiento?: string;
 }
 
 export interface CobroEfectivo {
@@ -100,6 +143,7 @@ export interface CobroEfectivo {
   creado_en: string;
   factura: Factura | null;
   items_cobrados: ItemDeuda[];
+  documento: DocumentoCobro | Record<string, never>;
 }
 
 export interface ResumenFormaPago {
@@ -136,6 +180,56 @@ export interface ResumenCaja {
   };
   facturas_registradas: number;
   qr_pendientes_de_confirmar: number;
+  // Caja del SIIC ya cerrada: arqueo, recaudado y diferencia que devolvió el cierre.
+  cierre_siic: TotalesCierre | null;
+}
+
+export interface TotalesCierre {
+  efectivo_bs: string;
+  efectivo_sus: string;
+  cheques_bs: string;
+  cheques_sus: string;
+  dividendos_bs: string;
+  otros_valores: string;
+  recaudado_bs: string;
+  diferencia_bs: string;
+}
+
+export interface DocumentoCierre {
+  lote: string;
+  indice: string;
+  ente: string;
+  banco: string;
+  moneda: string;
+  numero: string;
+  importe: string;
+  fecha_registro: string;
+  fecha_vencimiento: string;
+  editable: boolean;
+}
+
+export interface CierreCaja {
+  caja_id: number;
+  estado: EstadoCaja;
+  cortes: Record<string, number>;
+  facturas_pendientes: number;
+  qr_sin_confirmar: number;
+  documentos: DocumentoCierre[];
+  entes?: { id: number; descripcion: string }[];
+  bancos?: { id: number; descripcion: string }[];
+  totales?: TotalesCierre;
+  cierre?: { descripcion?: string; cerrada_en_siic?: string; datos?: TotalesCierre };
+}
+
+export interface NuevoDocumentoCierre {
+  ente_id: number;
+  banco_id: number;
+  moneda: "B" | "D";
+  numero: string;
+  importe: string;
+  fecha_registro?: string;
+  fecha_vencimiento?: string;
+  indice?: string;
 }
 
 export interface LogAuditoria {

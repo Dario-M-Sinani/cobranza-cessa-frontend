@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { obtenerCobroAgrupado, obtenerCobroEfectivo, obtenerTransaccion } from "../api/cobranza";
+import {
+  obtenerCobroAgrupado,
+  obtenerCobroEfectivo,
+  obtenerTransaccion,
+  registrarImpresion,
+  type TipoComprobante,
+} from "../api/cobranza";
 import { ApiError } from "../api/client";
 import type { CobroAgrupado, CobroEfectivo, TransaccionQR } from "../api/types";
 import { aCentavos, formatoBs } from "../utils/dinero";
@@ -32,7 +38,11 @@ function ComprobanteIndividual() {
       .finally(() => setCargando(false));
   }, [tipo, id]);
 
-  useImprimirAlCargar(!cargando && datos !== null && (tipo === "efectivo" || (datos as TransaccionQR).estado === "pagado"));
+  const impresion = useImpresion(
+    tipo === "efectivo" ? "efectivo" : "qr",
+    Number(id),
+    !cargando && datos !== null && (tipo === "efectivo" || (datos as TransaccionQR).estado === "pagado")
+  );
 
   if (cargando) return <p className="pagina">Cargando...</p>;
   if (error || !datos) return <p className="pagina mensaje-error">{error ?? "Comprobante no encontrado."}</p>;
@@ -57,14 +67,13 @@ function ComprobanteIndividual() {
   const esAdelanto = Number(montoCobrado) < Number(datos.deuda.monto);
 
   return (
-    <div className="pagina comprobante">
-      <div className="comprobante__solo-pantalla acciones">
-        <button onClick={() => window.print()}>Imprimir comprobante</button>
-      </div>
+    <div className={`pagina comprobante${impresion.autorizado ? "" : " comprobante--bloqueado"}`}>
+      <BarraImpresion impresion={impresion} />
 
       <div className="tarjeta comprobante__hoja">
         <h1>Cobranza CESSA</h1>
         <p className="detalle-fecha">Comprobante interno de cobro — sin valor fiscal</p>
+        <MarcaReimpresion impresion={impresion} />
 
         <table className="comprobante__tabla">
           <tbody>
@@ -160,20 +169,19 @@ function ComprobanteGrupo() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar el comprobante."));
   }, [id]);
 
-  useImprimirAlCargar(grupo !== null);
+  const impresion = useImpresion("grupo", Number(id), grupo !== null);
 
   if (error) return <p className="pagina mensaje-error">{error}</p>;
   if (!grupo) return <p className="pagina">Cargando...</p>;
 
   return (
-    <div className="pagina comprobante">
-      <div className="comprobante__solo-pantalla acciones">
-        <button onClick={() => window.print()}>Imprimir comprobante</button>
-      </div>
+    <div className={`pagina comprobante${impresion.autorizado ? "" : " comprobante--bloqueado"}`}>
+      <BarraImpresion impresion={impresion} />
 
       <div className="tarjeta comprobante__hoja">
         <h1>Cobranza CESSA</h1>
         <p className="detalle-fecha">Comprobante interno de cobro — sin valor fiscal</p>
+        <MarcaReimpresion impresion={impresion} />
 
         <table className="comprobante__tabla">
           <tbody>
@@ -247,20 +255,77 @@ function ComprobanteGrupo() {
   );
 }
 
-// Con `?imprimir=1` (reimpresión con F9) abre el diálogo de impresión apenas el
-// comprobante está listo, una sola vez: el parámetro se saca de la URL para que recargar
-// la página no vuelva a imprimir.
-function useImprimirAlCargar(listo: boolean) {
+interface Impresion {
+  imprimir: () => void;
+  autorizado: boolean;
+  esReimpresion: boolean;
+  enCurso: boolean;
+  error: string | null;
+}
+
+// Imprimir pasa siempre por el backend (POST /comprobantes/imprimir/): la cajera imprime cada
+// comprobante una sola vez; reimprimir es de supervisor/admin y sale marcado. Sin ese permiso
+// la hoja no se imprime (ni con Ctrl+P: ver .comprobante--bloqueado en App.css), y se vuelve
+// a bloquear apenas termina cada impresión. Con `?imprimir=1` (al cobrar) imprime solo.
+function useImpresion(tipo: TipoComprobante, id: number, listo: boolean): Impresion {
   const [parametros, setParametros] = useSearchParams();
   const pedido = parametros.get("imprimir") === "1";
+  const [autorizado, setAutorizado] = useState(false);
+  const [esReimpresion, setEsReimpresion] = useState(false);
+  const [enCurso, setEnCurso] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const yaPedido = useRef(false);
+
+  const imprimir = useCallback(async () => {
+    setEnCurso(true);
+    setError(null);
+    try {
+      const r = await registrarImpresion(tipo, id);
+      setEsReimpresion(r.es_reimpresion);
+      setAutorizado(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo registrar la impresión.");
+    } finally {
+      setEnCurso(false);
+    }
+  }, [tipo, id]);
+
+  // Recién con la hoja ya habilitada (y la marca de reimpresión dibujada) se abre el diálogo.
   useEffect(() => {
-    if (!listo || !pedido) return;
-    // Primero imprimir y recién después limpiar la URL: limpiarla antes re-ejecutaría este
-    // efecto y su limpieza cancelaría la impresión.
-    const espera = setTimeout(() => {
-      window.print();
-      setParametros({}, { replace: true });
-    }, 300);
+    if (!autorizado) return;
+    const espera = setTimeout(() => window.print(), 100);
     return () => clearTimeout(espera);
-  }, [listo, pedido, setParametros]);
+  }, [autorizado]);
+
+  useEffect(() => {
+    const bloquear = () => setAutorizado(false);
+    window.addEventListener("afterprint", bloquear);
+    return () => window.removeEventListener("afterprint", bloquear);
+  }, []);
+
+  // El ref evita pedir dos impresiones por el doble efecto de StrictMode; el parámetro se saca
+  // de la URL para que recargar la página no vuelva a pedir.
+  useEffect(() => {
+    if (!listo || !pedido || yaPedido.current) return;
+    yaPedido.current = true;
+    setParametros({}, { replace: true });
+    imprimir();
+  }, [listo, pedido, imprimir, setParametros]);
+
+  return { imprimir, autorizado, esReimpresion, enCurso, error };
+}
+
+function BarraImpresion({ impresion }: { impresion: Impresion }) {
+  return (
+    <div className="comprobante__solo-pantalla acciones">
+      <button onClick={impresion.imprimir} disabled={impresion.enCurso}>
+        Imprimir comprobante
+      </button>
+      {impresion.error && <span className="mensaje-error">{impresion.error}</span>}
+    </div>
+  );
+}
+
+function MarcaReimpresion({ impresion }: { impresion: Impresion }) {
+  return impresion.esReimpresion ? <p className="comprobante__reimpresion">REIMPRESIÓN</p> : null;
 }

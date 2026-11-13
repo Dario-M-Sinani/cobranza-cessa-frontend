@@ -17,7 +17,7 @@ export function ProtectedRoute({ children, rolesPermitidos, esDeCobro }: Props) 
   if (!sesion) return <Navigate to="/login" replace />;
   if (esDeCobro && sesion.soloConsulta) return <Navigate to="/pagos-web" replace />;
   if (rolesPermitidos && !rolesPermitidos.includes(sesion.rol)) {
-    return <p className="pagina mensaje-error">No tenés permiso para ver esta página.</p>;
+    return <p className="pagina mensaje-error">No tienes permiso para ver esta página.</p>;
   }
   return <>{children}</>;
 }

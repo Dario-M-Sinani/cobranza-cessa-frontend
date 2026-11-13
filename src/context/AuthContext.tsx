@@ -5,7 +5,7 @@ import { clearTokens, getAccessToken } from "../api/client";
 interface AuthContextValue {
   sesion: SesionUsuario | null;
   cargando: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<SesionUsuario>;
   logout: () => void;
 }
 
@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(username: string, password: string) {
     const nuevaSesion = await loginRequest(username, password);
     setSesion(nuevaSesion);
+    return nuevaSesion;
   }
 
   function logout() {

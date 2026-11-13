@@ -1,12 +1,15 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
-import { AtajoReimprimir } from "./components/AtajoReimprimir";
+import "./retoque.css";
 import { NavBar } from "./components/NavBar";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { AuditoriaPage } from "./pages/AuditoriaPage";
 import { CajaPage } from "./pages/CajaPage";
 import { ComprobantePage } from "./pages/ComprobantePage";
+import { CajerosPage } from "./pages/CajerosPage";
+import { ComprobantesPage } from "./pages/ComprobantesPage";
+import { ContrasenaPage } from "./pages/ContrasenaPage";
 import { ConsultaDeudaPage } from "./pages/ConsultaDeudaPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LiquidacionesPage } from "./pages/LiquidacionesPage";
@@ -18,7 +21,6 @@ export default function App() {
   return (
     <AuthProvider>
       <NavBar />
-      <AtajoReimprimir />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
@@ -58,6 +60,30 @@ export default function App() {
           element={
             <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
               <LiquidacionesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cajeros"
+          element={
+            <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
+              <CajerosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/contrasena"
+          element={
+            <ProtectedRoute>
+              <ContrasenaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/comprobantes"
+          element={
+            <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
+              <ComprobantesPage />
             </ProtectedRoute>
           }
         />

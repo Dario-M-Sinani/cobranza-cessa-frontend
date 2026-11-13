@@ -16,8 +16,10 @@ export function LoginPage() {
     setError(null);
     setEnviando(true);
     try {
-      await login(username, password);
-      navigate("/transacciones");
+      const sesion = await login(username, password);
+      // La cajera arranca en Cobrar; supervisor/admin y el panel de solo consulta, en Pagos web.
+      const cobra = sesion.rol === "cajera" && !sesion.soloConsulta;
+      navigate(cobra ? "/deuda" : "/pagos-web");
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401

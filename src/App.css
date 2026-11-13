@@ -342,6 +342,24 @@ button:disabled {
     border: none;
     box-shadow: none;
   }
+
+  /* Sin permiso del backend (POST /comprobantes/imprimir/) la hoja no sale ni con Ctrl+P. */
+  .comprobante--bloqueado .comprobante__hoja {
+    display: none !important;
+  }
+
+  .comprobante--bloqueado::after {
+    content: "Comprobante sin autorización de impresión.";
+  }
+}
+
+.comprobante__reimpresion {
+  margin: 4px 0 8px;
+  padding: 2px 0;
+  border: 2px solid currentColor;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 3px;
 }
 
 /* ---- Pantalla de cobro ---- */
@@ -607,6 +625,13 @@ kbd {
 
 .resultado .desglose {
   justify-content: center;
+}
+
+/* En la tarjeta de "Cobro registrado" el nombre del cliente puede ser largo: que corte línea
+   en vez de salirse de la tarjeta. */
+.resultado .comprobante__tabla td:first-child {
+  white-space: normal;
+  text-align: left;
 }
 
 .comprobante__items td:last-child {
@@ -996,3 +1021,29 @@ kbd {
 .detalle-liquidacion td {
   overflow-wrap: anywhere;
 }
+
+/* ---- Comprobantes del día ---- */
+
+.sin-corte {
+  white-space: nowrap;
+}
+
+a.boton-secundario {
+  display: inline-block;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.filtros input[type="search"] {
+  min-width: min(320px, 100%);
+}
+
+/* Cierre de caja del SIIC (components/CierreCaja.tsx) */
+.cierre h3 { margin: 1.25rem 0 0.5rem; font-size: 1rem; }
+.cierre__cortes { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+.cierre__corte { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
+.cierre__corte input { width: 100%; text-align: right; }
+.cierre__corte small { color: var(--texto-suave, #6b7280); text-align: right; }
+.cierre__observacion { display: flex; flex-direction: column; gap: 0.25rem; max-width: 480px; margin-bottom: 0.75rem; }
+.mensaje-ok { color: #15803d; }
+.monto--alerta { color: #b91c1c; }

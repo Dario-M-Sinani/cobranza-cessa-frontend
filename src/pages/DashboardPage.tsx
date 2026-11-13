@@ -3,14 +3,20 @@ import { obtenerResumenDashboard } from "../api/dashboard";
 import { ApiError } from "../api/client";
 import type { ResumenDashboard } from "../api/types";
 import { useAuth } from "../context/AuthContext";
+import { aCentavos, formatoBs } from "../utils/dinero";
+import { fechaISO, hoyISO } from "../utils/fechas";
 
 const ETIQUETAS_ESTADO_CAJA: Record<string, string> = {
   abierta: "Abierta",
   cerrada: "Cerrada",
 };
 
-function hoyISO(): string {
-  return new Date().toISOString().slice(0, 10);
+function bs(monto: string | number): string {
+  return `Bs. ${formatoBs(aCentavos(monto))}`;
+}
+
+function cobros(cantidad: number): string {
+  return cantidad === 1 ? "1 cobro" : `${cantidad} cobros`;
 }
 
 function formatearFecha(iso: string | null): string {
@@ -80,9 +86,11 @@ export function DashboardPage() {
             <div className="tarjetas-resumen">
               <div className="tarjeta stat">
                 <p className="stat__etiqueta">Total cobrado</p>
-                <p className="monto">Bs. {resumen.monto_total}</p>
+                <p className="monto">{bs(resumen.monto_total)}</p>
                 <p className="detalle-fecha">
-                  {resumen.desde === resumen.hasta ? resumen.desde : `${resumen.desde} → ${resumen.hasta}`}
+                  {resumen.desde === resumen.hasta
+                    ? fechaISO(resumen.desde)
+                    : `${fechaISO(resumen.desde)} → ${fechaISO(resumen.hasta)}`}
                 </p>
               </div>
               <div className="tarjeta stat">
@@ -91,13 +99,13 @@ export function DashboardPage() {
               </div>
               <div className="tarjeta stat">
                 <p className="stat__etiqueta">QR</p>
-                <p className="monto">Bs. {resumen.por_forma_pago.qr.monto}</p>
-                <p className="detalle-fecha">{resumen.por_forma_pago.qr.cantidad} cobros</p>
+                <p className="monto">{bs(resumen.por_forma_pago.qr.monto)}</p>
+                <p className="detalle-fecha">{cobros(resumen.por_forma_pago.qr.cantidad)}</p>
               </div>
               <div className="tarjeta stat">
                 <p className="stat__etiqueta">Efectivo</p>
-                <p className="monto">Bs. {resumen.por_forma_pago.efectivo.monto}</p>
-                <p className="detalle-fecha">{resumen.por_forma_pago.efectivo.cantidad} cobros</p>
+                <p className="monto">{bs(resumen.por_forma_pago.efectivo.monto)}</p>
+                <p className="detalle-fecha">{cobros(resumen.por_forma_pago.efectivo.cantidad)}</p>
               </div>
               <div className="tarjeta stat">
                 <p className="stat__etiqueta">Facturas registradas</p>
@@ -152,7 +160,7 @@ export function DashboardPage() {
                       <tr key={fila.cajero}>
                         <td>{fila.cajero}</td>
                         <td>{fila.cantidad_cobros}</td>
-                        <td>Bs. {fila.monto_total}</td>
+                        <td>{bs(fila.monto_total)}</td>
                       </tr>
                     ))}
                     {resumen.por_cajero.length === 0 && (

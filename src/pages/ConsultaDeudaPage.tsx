@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { CobroAgrupado, CobroEfectivo, Deuda, ItemDeuda, TransaccionQR } from "../api/types";
+import { ProformaCobro } from "../components/ProformaCobro";
+import type { CobroAgrupado, CobroEfectivo, Deuda, FormasPago, ItemDeuda, TransaccionQR } from "../api/types";
 import {
   consultarDeuda,
   generarTransaccionQR,
   listarCajas,
+  obtenerFormasPago,
   registrarCobroAgrupado,
   registrarCobroEfectivo,
 } from "../api/cobranza";
 import { ApiError } from "../api/client";
-import { reimprimirUltimo } from "../utils/reimprimir";
 import { FacturasAnteriores } from "../components/FacturasAnteriores";
 import { useAuth } from "../context/AuthContext";
 import { aCentavos, aDecimal, desgloseVuelto, fechaCorta, formatoBs, formatoKwh, sugerenciasDePago } from "../utils/dinero";
 
-type Metodo = "efectivo" | "qr";
+type Metodo = "efectivo" | "qr" | "documento";
+
+const DOCUMENTO_VACIO = { ente_id: "", banco_id: "", numero: "", fecha_registro: "", fecha_vencimiento: "" };
 
 // Un cliente dentro del cobro en curso: su deuda consultada y cuántos comprobantes se
 // le cobran (siempre los N más antiguos; SIIC no deja saltear).
@@ -61,6 +64,10 @@ export function ConsultaDeudaPage() {
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [sinCajaAbierta, setSinCajaAbierta] = useState(false);
+  // Cheque, depósito, tarjeta... (solo con caja del SIIC).
+  const [formasPago, setFormasPago] = useState<FormasPago | null>(null);
+  const [documento, setDocumento] = useState(DOCUMENTO_VACIO);
+  const [conProforma, setConProforma] = useState(false);
 
   const esCajera = sesion?.rol === "cajera";
   const actual: EnCarrito | null = carrito[activo] ?? null;
@@ -71,6 +78,16 @@ export function ConsultaDeudaPage() {
   const recibidoCentavos = aCentavos(recibido);
   const vuelto = recibidoCentavos - aCobrar;
   const terminado = Boolean(cobroEfectivo || transaccion || cobroAgrupado);
+
+  useEffect(() => {
+    if (!esCajera || !sesion?.cajaSiic) return;
+    obtenerFormasPago()
+      .then(setFormasPago)
+      .catch(() => setFormasPago(null));
+  }, [esCajera, sesion?.cajaSiic]);
+
+  const enteDocumento = formasPago?.entes.find((e) => String(e.id) === documento.ente_id);
+  const esCheque = enteDocumento?.descripcion.toUpperCase() === "CHEQUE";
 
   useEffect(() => {
     if (!esCajera) return;
@@ -85,6 +102,8 @@ export function ConsultaDeudaPage() {
     setActivo(0);
     setRecibido("");
     setMetodo("efectivo");
+    setDocumento(DOCUMENTO_VACIO);
+    setConProforma(false);
     setTransaccion(null);
     setCobroEfectivo(null);
     setCobroAgrupado(null);
@@ -132,6 +151,29 @@ export function ConsultaDeudaPage() {
     } finally {
       setCargando(false);
     }
+  }
+
+  // Proforma: cada cliente elegido se consulta como siempre y entra al cobro con las facturas de la
+  // proforma ya marcadas (las más antiguas, hasta el mes elegido).
+  async function agregarDesdeProforma(clientes: { nro_cliente: string; cantidad: number }[]) {
+    setError(null);
+    let nuevo = [...carrito];
+    const fallidos: string[] = [];
+    for (const c of clientes) {
+      try {
+        const deuda = await consultarDeuda(c.nro_cliente);
+        const entrada = { deuda, cantidad: Math.min(c.cantidad, deuda.items?.length ?? 0) };
+        const i = nuevo.findIndex((e) => e.deuda.cliente.codigo_externo === deuda.cliente.codigo_externo);
+        nuevo = i >= 0 ? nuevo.map((e, j) => (j === i ? entrada : e)) : [...nuevo, entrada];
+      } catch {
+        fallidos.push(c.nro_cliente);
+      }
+    }
+    setCarrito(nuevo);
+    setActivo(0);
+    setMetodo("efectivo");
+    setRecibido("");
+    if (fallidos.length) setError(`No se pudo consultar: ${fallidos.join(", ")}. Los demás se agregaron.`);
   }
 
   function alternarComprobante(indice: number) {
@@ -182,6 +224,43 @@ export function ConsultaDeudaPage() {
     }
   }
 
+  async function onCobrarConDocumento(e: FormEvent) {
+    e.preventDefault();
+    if (conDeuda.length === 0 || aCobrar <= 0 || seleccionInvalida || !enteDocumento) return;
+    const datos = {
+      ente_id: Number(documento.ente_id),
+      banco_id: Number(documento.banco_id),
+      numero: documento.numero.trim(),
+      ...(esCheque
+        ? { fecha_registro: documento.fecha_registro.replace(/-/g, ""), fecha_vencimiento: documento.fecha_vencimiento.replace(/-/g, "") }
+        : {}),
+    };
+    setError(null);
+    setEnviando(true);
+    try {
+      if (conDeuda.length === 1) {
+        const unico = conDeuda[0];
+        setCobroEfectivo(
+          await registrarCobroEfectivo(unico.deuda.id, aDecimal(aCobrar), cobraTodo(unico) ? undefined : unico.cantidad, datos),
+        );
+      } else {
+        setCobroAgrupado(
+          await registrarCobroAgrupado(
+            aDecimal(aCobrar),
+            conDeuda.map((c) =>
+              cobraTodo(c) ? { deuda_id: c.deuda.id } : { deuda_id: c.deuda.id, cantidad_comprobantes: c.cantidad },
+            ),
+            datos,
+          ),
+        );
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo registrar el cobro.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   async function onGenerarQR() {
     if (conDeuda.length !== 1 || aCobrar <= 0) return;
     const unico = conDeuda[0];
@@ -203,16 +282,15 @@ export function ConsultaDeudaPage() {
       <div className="pagina__encabezado">
         <h1>Cobrar</h1>
         <span className="atajos">
-          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo · <kbd>F9</kbd> reimprimir último{" "}
-          <button type="button" className="boton-secundario boton-chico" onClick={reimprimirUltimo}>
-            Reimprimir último
-          </button>
+          <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo
         </span>
       </div>
 
       {esCajera && sinCajaAbierta && (
         <p className="aviso">
-          No tienes una caja abierta: los cobros se registran igual, pero no entran en ningún cierre.{" "}
+          {sesion?.cajaSiic
+            ? "No tienes una caja abierta: ábrela para poder cobrar."
+            : "No tienes una caja abierta: los cobros se registran igual, pero no entran en ningún cierre."}{" "}
           <Link to="/caja">Abrir caja</Link>
         </p>
       )}
@@ -221,8 +299,8 @@ export function ConsultaDeudaPage() {
         <form className="buscador" onSubmit={onConsultar}>
           <input
             ref={codigoInputRef}
-            inputMode="numeric"
-            placeholder={carrito.length ? "Agregar otro cliente al cobro (número)" : "Número de cliente"}
+            inputMode="text"
+            placeholder={carrito.length ? "Agregar otro cliente al cobro (N° de cliente o de cuenta)" : "N° de cliente o de cuenta (05-059-07421)"}
             value={codigoExterno}
             onChange={(e) => setCodigoExterno(e.target.value)}
             autoFocus
@@ -230,7 +308,16 @@ export function ConsultaDeudaPage() {
           <button type="submit" disabled={cargando}>
             {cargando ? "Buscando..." : carrito.length ? "Agregar" : "Buscar"}
           </button>
+          {!conProforma && (
+            <button type="button" className="boton-secundario" onClick={() => setConProforma(true)}>
+              Proforma
+            </button>
+          )}
         </form>
+      )}
+
+      {conProforma && !terminado && (
+        <ProformaCobro onAgregar={agregarDesdeProforma} onCerrar={() => setConProforma(false)} />
       )}
 
       {error && <p className="mensaje-error">{error}</p>}
@@ -258,8 +345,10 @@ export function ConsultaDeudaPage() {
                 <h2>{actual.deuda.cliente.nombre}</h2>
                 <p className="detalle-fecha">
                   Cliente {actual.deuda.cliente.codigo_externo}
+                  {actual.deuda.datos_cliente?.nro_cuenta ? ` · Cuenta ${actual.deuda.datos_cliente.nro_cuenta}` : ""}
                   {actual.deuda.cliente.nit_ci ? ` · NIT/CI ${actual.deuda.cliente.nit_ci}` : ""}
                 </p>
+                <DatosSuministro datos={actual.deuda.datos_cliente} />
               </div>
               <div className="cliente-cabecera__total">
                 <span className="detalle-fecha">Deuda total</span>
@@ -388,9 +477,95 @@ export function ConsultaDeudaPage() {
                     >
                       QR
                     </button>
+                    {formasPago?.disponible && (
+                      <button
+                        role="tab"
+                        aria-selected={metodo === "documento"}
+                        className={metodo === "documento" ? "pestana pestana--activa" : "pestana"}
+                        onClick={() => setMetodo("documento")}
+                      >
+                        Cheque / otro
+                      </button>
+                    )}
                   </div>
 
-                  {metodo === "efectivo" || conDeuda.length > 1 ? (
+                  {metodo === "documento" && formasPago?.disponible ? (
+                    <form className="efectivo" onSubmit={onCobrarConDocumento}>
+                      <div className="documento-cobro">
+                        <label>
+                          Tipo
+                          <select
+                            required
+                            value={documento.ente_id}
+                            onChange={(e) => setDocumento({ ...documento, ente_id: e.target.value })}
+                          >
+                            <option value="">Elige</option>
+                            {formasPago.entes.map((ente) => (
+                              <option key={ente.id} value={ente.id}>
+                                {ente.descripcion}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Banco
+                          <select
+                            required
+                            value={documento.banco_id}
+                            onChange={(e) => setDocumento({ ...documento, banco_id: e.target.value })}
+                          >
+                            <option value="">Elige</option>
+                            {formasPago.bancos.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.descripcion}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Número
+                          <input
+                            required
+                            maxLength={20}
+                            value={documento.numero}
+                            onChange={(e) => setDocumento({ ...documento, numero: e.target.value })}
+                          />
+                        </label>
+                        {esCheque && (
+                          <>
+                            <label>
+                              Emisión
+                              <input
+                                required
+                                type="date"
+                                value={documento.fecha_registro}
+                                onChange={(e) => setDocumento({ ...documento, fecha_registro: e.target.value })}
+                              />
+                            </label>
+                            <label>
+                              Vencimiento
+                              <input
+                                required
+                                type="date"
+                                value={documento.fecha_vencimiento}
+                                onChange={(e) => setDocumento({ ...documento, fecha_vencimiento: e.target.value })}
+                              />
+                            </label>
+                          </>
+                        )}
+                      </div>
+                      <p className="detalle-fecha">
+                        {esCheque
+                          ? "El cheque tiene que vencer en más de 3 días y a no más de 27 días de su emisión."
+                          : "El documento cubre el monto exacto: no hay vuelto."}
+                      </p>
+                      <button type="submit" className="boton-principal" disabled={enviando}>
+                        {enviando
+                          ? "Registrando..."
+                          : `Cobrar Bs. ${formatoBs(aCobrar)}${enteDocumento ? ` con ${enteDocumento.descripcion.toLowerCase()}` : ""}${varios ? ` (${conDeuda.length} clientes)` : ""}`}
+                      </button>
+                    </form>
+                  ) : metodo === "efectivo" || conDeuda.length > 1 ? (
                     <form className="efectivo" onSubmit={onCobrarEfectivo}>
                       <label>
                         Recibido (Bs.)
@@ -454,7 +629,7 @@ export function ConsultaDeudaPage() {
           cobrado={aCentavos(cobroEfectivo.monto_snapshot)}
           recibido={aCentavos(cobroEfectivo.monto_recibido)}
           detalle={[cobroEfectivo]}
-          onImprimir={() => navigate(`/comprobante/efectivo/${cobroEfectivo.id}`)}
+          onImprimir={() => navigate(`/comprobante/efectivo/${cobroEfectivo.id}?imprimir=1`)}
           onSiguiente={nuevoCobro}
         />
       )}
@@ -465,7 +640,7 @@ export function ConsultaDeudaPage() {
           cobrado={aCentavos(cobroAgrupado.monto_total)}
           recibido={aCentavos(cobroAgrupado.monto_recibido)}
           detalle={cobroAgrupado.cobros}
-          onImprimir={() => navigate(`/comprobante/grupo/${cobroAgrupado.id}`)}
+          onImprimir={() => navigate(`/comprobante/grupo/${cobroAgrupado.id}?imprimir=1`)}
           onSiguiente={nuevoCobro}
         />
       )}
@@ -498,6 +673,21 @@ export function ConsultaDeudaPage() {
   );
 }
 
+/** Dirección, medidor, categoría y estado del suministro, como la app Java. Un estado que no sea
+ * "CONECTADO" (cortado, suspendido...) sale resaltado para que la cajera lo vea. */
+function DatosSuministro({ datos }: { datos?: Deuda["datos_cliente"] }) {
+  if (!datos || !(datos.direccion || datos.nro_medidor || datos.estado)) return null;
+  const conectado = !datos.estado || datos.estado.toUpperCase() === "CONECTADO";
+  return (
+    <div className="suministro">
+      {datos.estado && <span className={`estado ${conectado ? "estado--pagado" : "estado--error"}`}>{datos.estado}</span>}
+      {datos.categoria && <span className="suministro__dato">{datos.categoria}</span>}
+      {datos.nro_medidor && <span className="suministro__dato">Medidor {datos.nro_medidor}</span>}
+      {datos.direccion && <span className="suministro__dato">{datos.direccion}</span>}
+    </div>
+  );
+}
+
 function ResultadoEfectivo(props: {
   vuelto: number;
   cobrado: number;
@@ -507,17 +697,32 @@ function ResultadoEfectivo(props: {
   onSiguiente: () => void;
 }) {
   const { vuelto, cobrado, recibido, detalle } = props;
+  const documento = detalle[0]?.documento && "ente" in detalle[0].documento ? detalle[0].documento : null;
   const siguiente = useRef<HTMLButtonElement>(null);
   useEffect(() => siguiente.current?.focus(), []);
   return (
     <div className="tarjeta tarjeta-qr resultado">
       <p className="resultado__ok">Cobro registrado</p>
-      <span className="detalle-fecha">Vuelto a entregar</span>
-      <p className="monto monto--vuelto">Bs. {formatoBs(vuelto)}</p>
-      <DesgloseVuelto centavos={vuelto} />
-      <p className="detalle-fecha">
-        Cobrado Bs. {formatoBs(cobrado)} · Recibido Bs. {formatoBs(recibido)}
-      </p>
+      {documento ? (
+        <>
+          <span className="detalle-fecha">Pagado con</span>
+          <p className="monto">
+            {documento.ente.charAt(0) + documento.ente.slice(1).toLowerCase()} {documento.numero}
+          </p>
+          <p className="detalle-fecha">
+            {documento.banco} · Bs. {formatoBs(cobrado)} · sin vuelto
+          </p>
+        </>
+      ) : (
+        <>
+          <span className="detalle-fecha">Vuelto a entregar</span>
+          <p className="monto monto--vuelto">Bs. {formatoBs(vuelto)}</p>
+          <DesgloseVuelto centavos={vuelto} />
+          <p className="detalle-fecha">
+            Cobrado Bs. {formatoBs(cobrado)} · Recibido Bs. {formatoBs(recibido)}
+          </p>
+        </>
+      )}
       <table className="comprobante__tabla">
         <tbody>
           {detalle.map((c) => {
@@ -528,7 +733,7 @@ function ResultadoEfectivo(props: {
                   {c.deuda.cliente.nombre}
                   <span className="detalle-fecha">
                     {" "}
-                    · {c.items_cobrados?.length ?? 0} comprobantes
+                    · {(c.items_cobrados?.length ?? 0) === 1 ? "1 comprobante" : `${c.items_cobrados?.length ?? 0} comprobantes`}
                     {pendiente > 0 ? ` · queda Bs. ${formatoBs(pendiente)}` : ""}
                   </span>
                 </td>

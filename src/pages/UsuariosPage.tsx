@@ -145,8 +145,8 @@ export function UsuariosPage() {
             <tr>
               <th>Usuario</th>
               <th>Rol</th>
-              <th>Activo</th>
-              <th>Acciones</th>
+              <th title="Habilitado para cobrar. No bloquea el ingreso al panel.">Puede cobrar</th>
+              <th></th>
               <th>Resetear contraseña</th>
             </tr>
           </thead>
@@ -167,15 +167,16 @@ export function UsuariosPage() {
                 </td>
                 <td>
                   <span className={`estado estado--${u.activo ? "abierta" : "cerrada"}`}>
-                    {u.activo ? "Activo" : "Inactivo"}
+                    {u.activo ? "Sí" : "No"}
                   </span>
                 </td>
-                <td className="acciones">
+                <td>
                   <button disabled={accionEnCurso === u.id} onClick={() => onAlternarActivo(u)}>
-                    {u.activo ? "Desactivar" : "Activar"}
+                    {u.activo ? "Quitar cobro" : "Habilitar cobro"}
                   </button>
                 </td>
-                <td className="acciones">
+                <td>
+                  <div className="acciones">
                   <input
                     type="password"
                     placeholder="Nueva contraseña"
@@ -188,6 +189,7 @@ export function UsuariosPage() {
                     Resetear
                   </button>
                   {confirmacionReset === u.id && <span className="detalle-fecha">Actualizada</span>}
+                  </div>
                 </td>
               </tr>
             ))}

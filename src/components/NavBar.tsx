@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { NavLink as Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../hooks/useTheme";
 import { ThemeIcon } from "./ThemeIcon";
@@ -31,6 +31,8 @@ export function NavBar() {
           {(sesion.rol === "supervisor" || sesion.rol === "admin") && (
             <>
               <Link to="/dashboard">Dashboard</Link>
+              <Link to="/comprobantes">Comprobantes</Link>
+              <Link to="/cajeros">Cajeros</Link>
               <Link to="/pagos-web">Pagos web</Link>
             </>
           )}
@@ -53,10 +55,10 @@ export function NavBar() {
         </button>
         {sesion && (
           <>
-            <span>
-              {sesion.username} · {sesion.rol}
+            <Link to="/contrasena" className="navbar__perfil" title="Cambiar mi contraseña">
+              {sesion.nombre && sesion.nombre !== sesion.username ? sesion.nombre : sesion.username} · {sesion.rol}
               {sesion.soloConsulta && " · solo consulta"}
-            </span>
+            </Link>
             <button onClick={salir}>Salir</button>
           </>
         )}
