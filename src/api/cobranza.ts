@@ -46,6 +46,12 @@ export function generarTransaccionQR(deudaId: number, cantidadComprobantes?: num
   });
 }
 
+// Pregunta si el cliente ya pagó el QR (el backend consulta a SIP en el momento, con tope).
+export function consultarEstadoQR(id: number) {
+  return apiFetch<TransaccionQR>(`/transacciones-qr/${id}/estado/`);
+}
+
+// Anula el QR en SIP y en el panel. Si el cliente justo pagó, vuelve PAGADO.
 export function cancelarTransaccion(id: number) {
   return apiFetch<TransaccionQR>(`/transacciones-qr/${id}/cancelar/`, { method: "POST" });
 }

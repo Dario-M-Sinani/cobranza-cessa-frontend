@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ProformaCobro } from "../components/ProformaCobro";
+import { TarjetaQR } from "../components/TarjetaQR";
 import type { CobroAgrupado, CobroEfectivo, Deuda, FormasPago, ItemDeuda, TransaccionQR } from "../api/types";
 import {
   consultarDeuda,
@@ -646,28 +647,12 @@ export function ConsultaDeudaPage() {
       )}
 
       {transaccion && (
-        <div className="tarjeta tarjeta-qr resultado">
-          <p className="resultado__ok">QR generado</p>
-          {transaccion.imagen_qr_base64 ? (
-            <img
-              className="qr-imagen"
-              src={`data:image/png;base64,${transaccion.imagen_qr_base64}`}
-              alt={`Código QR de cobro por Bs. ${transaccion.monto_snapshot}`}
-            />
-          ) : (
-            <p className="mensaje-error">La pasarela no devolvió una imagen de QR.</p>
-          )}
-          <p className="monto">Bs. {formatoBs(aCentavos(transaccion.monto_snapshot))}</p>
-          <p className="detalle-fecha">El cliente lo escanea desde su banco; el pago se confirma solo.</p>
-          <div className="acciones">
-            <button className="boton-secundario" onClick={() => navigate("/transacciones")}>
-              Ver transacciones
-            </button>
-            <button ref={siguienteRef} onClick={nuevoCobro}>
-              Siguiente cliente (Enter)
-            </button>
-          </div>
-        </div>
+        <TarjetaQR
+          key={transaccion.id}
+          inicial={transaccion}
+          onImprimir={(id) => navigate(`/comprobante/qr/${id}?imprimir=1`)}
+          onSiguiente={nuevoCobro}
+        />
       )}
     </div>
   );
