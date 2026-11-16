@@ -25,6 +25,7 @@ export function NavBar() {
             <>
               <Link to="/deuda">Cobrar</Link>
               <Link to="/transacciones">Transacciones</Link>
+              {sesion.rol === "cajera" && <Link to="/comprobantes">Mis cobros</Link>}
               <Link to="/caja">Caja</Link>
             </>
           )}

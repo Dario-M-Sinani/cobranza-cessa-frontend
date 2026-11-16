@@ -8,10 +8,31 @@ import {
   type TipoComprobante,
 } from "../api/cobranza";
 import { ApiError } from "../api/client";
-import type { CobroAgrupado, CobroEfectivo, TransaccionQR } from "../api/types";
+import type { CobroAgrupado, CobroEfectivo, DocumentoCobro, TransaccionQR } from "../api/types";
 import { aCentavos, formatoBs } from "../utils/dinero";
 
 type Tipo = "qr" | "efectivo";
+
+// "20261120" (como lo guarda el backend) → "20/11/2026".
+function fechaDocumento(aaaammdd: string): string {
+  const v = String(aaaammdd ?? "").replace(/-/g, "");
+  return v.length === 8 ? `${v.slice(6, 8)}/${v.slice(4, 6)}/${v.slice(0, 4)}` : v;
+}
+
+function tieneDocumento(d: CobroEfectivo["documento"] | undefined): d is DocumentoCobro {
+  return Boolean(d && "ente" in d && d.ente);
+}
+
+// Cheque, depósito, tarjeta...: lo que se imprime en "Forma de pago" (vacío = efectivo).
+function formaDePago(d: CobroEfectivo["documento"] | undefined): string {
+  if (!tieneDocumento(d)) return "Efectivo";
+  const ente = d.ente.charAt(0) + d.ente.slice(1).toLowerCase();
+  return `${ente} N° ${d.numero} · ${d.banco}`;
+}
+
+function esCheque(d: DocumentoCobro): boolean {
+  return d.ente.toUpperCase() === "CHEQUE";
+}
 
 function esTipoValido(valor: string | undefined): valor is Tipo {
   return valor === "qr" || valor === "efectivo";
@@ -95,13 +116,22 @@ function ComprobanteIndividual() {
             </tr>
             <tr>
               <td>Forma de pago</td>
-              <td>{esEfectivo ? "Efectivo" : "QR (MC4/SIP)"}</td>
+              <td>{esEfectivo ? formaDePago(cobro.documento) : "QR (MC4/SIP)"}</td>
             </tr>
+            {esEfectivo && tieneDocumento(cobro.documento) && esCheque(cobro.documento) && (
+              <tr>
+                <td>Cheque</td>
+                <td>
+                  Emitido {fechaDocumento(cobro.documento.fecha_registro)} · vence{" "}
+                  {fechaDocumento(cobro.documento.fecha_vencimiento)}
+                </td>
+              </tr>
+            )}
             <tr>
               <td>Cajero/a</td>
               <td>{datos.usuario}</td>
             </tr>
-            {esEfectivo && (
+            {esEfectivo && !tieneDocumento(cobro.documento) && (
               <>
                 <tr>
                   <td>Monto recibido</td>
@@ -174,6 +204,10 @@ function ComprobanteGrupo() {
   if (error) return <p className="pagina mensaje-error">{error}</p>;
   if (!grupo) return <p className="pagina">Cargando...</p>;
 
+  // Un documento (ej. un cheque) para varios clientes: todos los cobros llevan el mismo.
+  const documento = grupo.cobros[0]?.documento;
+  const conDocumento = tieneDocumento(documento);
+
   return (
     <div className={`pagina comprobante${impresion.autorizado ? "" : " comprobante--bloqueado"}`}>
       <BarraImpresion impresion={impresion} />
@@ -195,8 +229,18 @@ function ComprobanteGrupo() {
             </tr>
             <tr>
               <td>Forma de pago</td>
-              <td>Efectivo · {grupo.cobros.length} clientes</td>
+              <td>
+                {formaDePago(documento)} · {grupo.cobros.length} clientes
+              </td>
             </tr>
+            {conDocumento && esCheque(documento) && (
+              <tr>
+                <td>Cheque</td>
+                <td>
+                  Emitido {fechaDocumento(documento.fecha_registro)} · vence {fechaDocumento(documento.fecha_vencimiento)}
+                </td>
+              </tr>
+            )}
             <tr>
               <td>Cajero/a</td>
               <td>{grupo.usuario}</td>
@@ -240,14 +284,18 @@ function ComprobanteGrupo() {
               <td>Total cobrado</td>
               <td className="num">Bs. {formatoBs(aCentavos(grupo.monto_total))}</td>
             </tr>
-            <tr>
-              <td>Recibido</td>
-              <td className="num">Bs. {formatoBs(aCentavos(grupo.monto_recibido))}</td>
-            </tr>
-            <tr>
-              <td>Vuelto</td>
-              <td className="num">Bs. {formatoBs(aCentavos(grupo.vuelto))}</td>
-            </tr>
+            {!conDocumento && (
+              <>
+                <tr>
+                  <td>Recibido</td>
+                  <td className="num">Bs. {formatoBs(aCentavos(grupo.monto_recibido))}</td>
+                </tr>
+                <tr>
+                  <td>Vuelto</td>
+                  <td className="num">Bs. {formatoBs(aCentavos(grupo.vuelto))}</td>
+                </tr>
+              </>
+            )}
           </tbody>
         </table>
       </div>

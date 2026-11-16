@@ -126,11 +126,12 @@ export function obtenerCierreCaja(id: number) {
   return apiFetch<CierreCaja>(`/cajas/${id}/cierre/`);
 }
 
-export function declararEfectivo(id: number, cortes: Record<string, number>) {
-  return apiFetch<{ cortes: Record<string, number>; efectivo_bs: string }>(`/cajas/${id}/efectivo/`, {
-    method: "PUT",
-    body: { cortes },
-  });
+// Efectivo contado por cortes: en Bs ("200"... "010") o en dólares (moneda "D": "100"... "1").
+export function declararEfectivo(id: number, cortes: Record<string, number>, moneda: "B" | "D" = "B") {
+  return apiFetch<{ cortes: Record<string, number>; efectivo_bs?: string; efectivo_sus?: string }>(
+    `/cajas/${id}/efectivo/`,
+    { method: "PUT", body: { moneda, cortes } },
+  );
 }
 
 export function guardarDocumentoCierre(id: number, documento: NuevoDocumentoCierre) {
@@ -229,4 +230,81 @@ export function registrarImpresion(tipo: TipoComprobante, id: number) {
     "/comprobantes/imprimir/",
     { method: "POST", body: { tipo, id } }
   );
+}
+
+// ---------- Lista y reportes de QR (como listaQr de la app Java) ----------
+export interface FiltrosQR {
+  desde: string;
+  hasta: string;
+  estado?: string;
+  cajero?: string;
+  clientes?: string; // "101194, 101591"
+  qr?: string;
+}
+
+export interface FilaQR {
+  id: number;
+  creado_en: string;
+  pagado_en: string | null;
+  cliente: { codigo: string; nombre: string };
+  monto: string;
+  estado: TransaccionQR["estado"];
+  estado_descripcion: string;
+  cajero: string;
+  factura: string;
+  factura_pendiente: boolean;
+  id_operacion: string;
+}
+
+export interface ResumenQR {
+  total: number;
+  pagados: number;
+  monto_pagado: string;
+}
+
+export interface DiaQR {
+  dia: string;
+  generados: number;
+  pagados: number;
+  monto_pagado: string;
+  anulados: number;
+  vencidos: number;
+  con_error: number;
+  pendientes: number;
+}
+
+export function consultaQR(filtros: FiltrosQR, extra: Record<string, string | number> = {}): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...filtros, ...extra })) {
+    if (v !== undefined && String(v).trim() !== "") p.set(k, String(v).trim());
+  }
+  return p.toString();
+}
+
+export function buscarQR(filtros: FiltrosQR, pagina: number) {
+  return apiFetch<ResumenQR & { pagina: number; paginas: number; por_pagina: number; resultados: FilaQR[] }>(
+    `/transacciones-qr/buscar/?${consultaQR(filtros, { pagina })}`
+  );
+}
+
+export function totalesQRPorDia(filtros: FiltrosQR) {
+  return apiFetch<{ desde: string; hasta: string; dias: DiaQR[]; totales: Omit<DiaQR, "dia"> }>(
+    `/transacciones-qr/totales-por-dia/?${consultaQR(filtros)}`
+  );
+}
+
+export function detalleQR(filtros: FiltrosQR) {
+  return apiFetch<ResumenQR & { desde: string; hasta: string; resultados: FilaQR[] }>(
+    `/transacciones-qr/detalle/?${consultaQR(filtros)}`
+  );
+}
+
+export async function exportarQRTxt(filtros: FiltrosQR) {
+  const blob = await apiFetchBlob(`/transacciones-qr/exportar-txt/?${consultaQR(filtros)}`);
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = `qr_${filtros.desde.replaceAll("-", "")}_${filtros.hasta.replaceAll("-", "")}.txt`;
+  enlace.click();
+  URL.revokeObjectURL(url);
 }

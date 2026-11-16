@@ -71,6 +71,7 @@ export function CajerosPage() {
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [conTransacciones, setConTransacciones] = useState<CajeroResumen | null>(null);
+  const [transaccionesEntidad, setTransaccionesEntidad] = useState(false);
 
   useEffect(() => {
     let vigente = true;
@@ -197,6 +198,18 @@ export function CajerosPage() {
         <label className="casilla">
           <input type="checkbox" checked={soloConCaja} onChange={(e) => setSoloConCaja(e.target.checked)} /> Solo con caja abierta
         </label>
+        {entidad !== 0 && (
+          <button
+            type="button"
+            className="boton-secundario"
+            onClick={() => {
+              setConTransacciones(null);
+              setTransaccionesEntidad(true);
+            }}
+          >
+            Transacciones de la entidad
+          </button>
+        )}
       </div>
 
       {error && <p className="mensaje-error">{error}</p>}
@@ -315,6 +328,13 @@ export function CajerosPage() {
       )}
 
       {conTransacciones && <TransaccionesCajero key={conTransacciones.id} cajero={conTransacciones} onCerrar={() => setConTransacciones(null)} />}
+      {transaccionesEntidad && entidad !== 0 && !conTransacciones && (
+        <TransaccionesCajero
+          key={`entidad-${entidad}`}
+          entidad={{ id: entidad, descripcion: nombreEntidad(entidad) }}
+          onCerrar={() => setTransaccionesEntidad(false)}
+        />
+      )}
 
       {cargando ? (
         <p className="detalle-fecha">Cargando...</p>

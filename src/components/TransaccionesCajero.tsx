@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
-import { apiFetch, ApiError } from "../api/client";
+import { apiFetch, apiFetchBlob, ApiError } from "../api/client";
 import type { CajeroResumen } from "../api/cajeros";
 import { aCentavos, formatoBs } from "../utils/dinero";
 import { hoyISO } from "../utils/fechas";
@@ -15,6 +15,8 @@ interface TransaccionSiic {
   fecha_pago: string | null;
   fecha_anulacion: string | null;
   origen: "" | "panel" | "web";
+  cajero?: string; // solo al ver toda una entidad
+  cajero_nombre?: string;
 }
 
 interface Detalle {
@@ -33,10 +35,24 @@ function dia(fecha: string): string {
 }
 
 /**
- * Transacciones de un cajero en el SIIC (también de los bancos), como "Transacciones" de la app Java.
- * Supervisor/admin: ver el detalle y anular las del día que no son del panel ni pagos web.
+ * Transacciones en el SIIC de un cajero o de todos los cajeros de una entidad (también de los bancos),
+ * como "Transacciones" de la app Java. Supervisor/admin: ver el detalle, reimprimir las facturas y
+ * anular las del día que no son del panel ni pagos web. Las fallidas (el SIIC rechazó el pago, no
+ * movieron plata) se ocultan, como en la app Java, salvo que se pidan.
  */
-export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResumen; onCerrar: () => void }) {
+export function TransaccionesCajero({
+  cajero,
+  entidad,
+  onCerrar,
+}: {
+  cajero?: CajeroResumen;
+  entidad?: { id: number; descripcion: string };
+  onCerrar: () => void;
+}) {
+  const porEntidad = !cajero && entidad !== undefined;
+  const columnas = porEntidad ? 8 : 7;
+  const [conFallidas, setConFallidas] = useState(false);
+  const [imprimiendo, setImprimiendo] = useState<string | null>(null);
   const [desde, setDesde] = useState(hoyISO());
   const [hasta, setHasta] = useState(hoyISO());
   const [filas, setFilas] = useState<TransaccionSiic[] | null>(null);
@@ -48,16 +64,35 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
   const [motivo, setMotivo] = useState("");
   const [recarga, setRecarga] = useState(0);
 
+  const cajeroId = cajero?.id;
+  const entidadId = entidad?.id;
+
   useEffect(() => {
     let vigente = true;
     setFilas(null);
-    apiFetch<{ transacciones: TransaccionSiic[] }>(`/cajeros/${cajero.id}/transacciones/?desde=${desde}&hasta=${hasta}`)
+    setError(null);
+    const rango = `desde=${desde}&hasta=${hasta}${conFallidas ? "&fallidas=1" : ""}`;
+    const url = cajeroId !== undefined ? `/cajeros/${cajeroId}/transacciones/?${rango}` : `/transacciones-siic/?entidad=${entidadId}&${rango}`;
+    apiFetch<{ transacciones: TransaccionSiic[] }>(url)
       .then((r) => vigente && setFilas(r.transacciones))
       .catch((err) => vigente && setError(err instanceof ApiError ? err.message : "No se pudieron leer las transacciones."));
     return () => {
       vigente = false;
     };
-  }, [cajero.id, desde, hasta, recarga]);
+  }, [cajeroId, entidadId, desde, hasta, conFallidas, recarga]);
+
+  async function reimprimirFacturas(t: TransaccionSiic) {
+    setImprimiendo(t.uuid);
+    setError(null);
+    try {
+      const pdf = await apiFetchBlob(`/transacciones-siic/${t.uuid}/facturas/`);
+      window.open(URL.createObjectURL(pdf), "_blank", "noopener");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudieron traer las facturas.");
+    } finally {
+      setImprimiendo(null);
+    }
+  }
 
   async function verDetalle(uuid: string) {
     if (abierta === uuid) {
@@ -94,7 +129,8 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
   return (
     <section className="tarjeta tarjeta--ancha">
       <h2 className="tarjeta__titulo">
-        <Icono nombre="documento" /> Transacciones de {cajero.username} · {cajero.nombre}
+        <Icono nombre="documento" />{" "}
+        {cajero ? `Transacciones de ${cajero.username} · ${cajero.nombre}` : `Transacciones de todos los cajeros · ${entidad?.descripcion}`}
       </h2>
       <div className="filtros">
         <label>
@@ -102,6 +138,9 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
         </label>
         <label>
           Hasta <input type="date" value={hasta} min={desde} max={hoy} onChange={(e) => e.target.value && setHasta(e.target.value)} />
+        </label>
+        <label className="casilla">
+          <input type="checkbox" checked={conFallidas} onChange={(e) => setConFallidas(e.target.checked)} /> Mostrar fallidas
         </label>
         <button type="button" className="boton-secundario" onClick={onCerrar}>
           Cerrar
@@ -121,6 +160,7 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
             <thead>
               <tr>
                 <th>Fecha</th>
+                {porEntidad && <th>Cajero</th>}
                 <th>Lote</th>
                 <th>Caja</th>
                 <th>Origen</th>
@@ -138,6 +178,7 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
                       <td className="sin-corte">
                         {dia(t.fecha_creacion)} {hora(t.fecha_pago ?? t.fecha_creacion)}
                       </td>
+                      {porEntidad && <td title={t.cajero_nombre}>{t.cajero}</td>}
                       <td>{t.lote}</td>
                       <td>{t.caja_codigo}</td>
                       <td>{ORIGEN[t.origen]}</td>
@@ -152,6 +193,16 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
                           <button className="boton-secundario boton-chico" onClick={() => verDetalle(t.uuid)}>
                             {abierta === t.uuid ? "Ocultar" : "Detalle"}
                           </button>
+                          {t.estado === "PAGADA" && (
+                            <button
+                              className="boton-secundario boton-chico"
+                              disabled={imprimiendo === t.uuid}
+                              onClick={() => reimprimirFacturas(t)}
+                              title="Abre el PDF de las facturas del SIIC para reimprimirlas"
+                            >
+                              {imprimiendo === t.uuid ? "Abriendo..." : "Facturas"}
+                            </button>
+                          )}
                           {sePuedeAnular && (
                             <button className="boton-secundario boton-chico boton-anular" onClick={() => setAnulando(t.uuid)}>
                               Anular
@@ -162,7 +213,7 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
                     </tr>
                     {abierta === t.uuid && (
                       <tr className="fila--detalle">
-                        <td colSpan={7}>
+                        <td colSpan={columnas}>
                           {detalle === null ? (
                             "Cargando..."
                           ) : (
@@ -187,7 +238,7 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
                     )}
                     {anulando === t.uuid && (
                       <tr className="fila--detalle">
-                        <td colSpan={7}>
+                        <td colSpan={columnas}>
                           <form className="anular" onSubmit={(e) => onAnular(e, t)}>
                             <span>
                               Anular el lote <strong>{t.lote}</strong> (Bs. {formatoBs(aCentavos(t.total_pagado ?? "0"))}) en el SIIC.
@@ -216,7 +267,7 @@ export function TransaccionesCajero({ cajero, onCerrar }: { cajero: CajeroResume
               })}
               {filas.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="detalle-fecha">
+                  <td colSpan={columnas} className="detalle-fecha">
                     Sin transacciones en esas fechas.
                   </td>
                 </tr>

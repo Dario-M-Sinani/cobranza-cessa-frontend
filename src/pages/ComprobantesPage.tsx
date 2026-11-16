@@ -2,15 +2,20 @@ import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { anularComprobante, listarComprobantesDelDia, type ComprobanteDelDia } from "../api/cobranza";
 import { ApiError } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 import { aCentavos, formatoBs } from "../utils/dinero";
 import { fechaISO, hoyISO, hora } from "../utils/fechas";
 
 /**
  * Cobros del panel de un día, para supervisor/admin: buscar el comprobante de un cliente y
  * reimprimirlo (la cajera imprime cada uno una sola vez, al cobrar). La reimpresión sale
- * marcada y queda en Auditoría.
+ * marcada y queda en Auditoría. La cajera ve acá sus propios cobros ("Mis cobros"): todos,
+ * efectivo, documentos y QR; imprime el que todavía no imprimió y no anula.
  */
 export function ComprobantesPage() {
+  const { sesion } = useAuth();
+  const esCajera = sesion?.rol === "cajera";
+  const columnas = esCajera ? 8 : 9;
   const [fecha, setFecha] = useState(hoyISO());
   const [filas, setFilas] = useState<ComprobanteDelDia[]>([]);
   const [cajero, setCajero] = useState("");
@@ -74,25 +79,28 @@ export function ComprobantesPage() {
   return (
     <div className="pagina pagina--ancha">
       <div className="pagina__encabezado">
-        <h1>Comprobantes</h1>
+        <h1>{esCajera ? "Mis cobros" : "Comprobantes"}</h1>
       </div>
       <p className="detalle-fecha">
-        Cobros del panel (efectivo y QR) por día. La cajera imprime cada comprobante una sola vez; desde acá se
-        reimprime o se anula (solo el mismo día, con motivo), y queda registrado en Auditoría.
+        {esCajera
+          ? "Todos tus cobros del día: efectivo, cheques u otros documentos y QR. Cada comprobante se imprime una sola vez; para reimprimir o anular, pídelo a tu supervisora."
+          : "Cobros del panel (efectivo y QR) por día. La cajera imprime cada comprobante una sola vez; desde acá se reimprime o se anula (solo el mismo día, con motivo), y queda registrado en Auditoría."}
       </p>
 
       <div className="filtros">
         <label>
           Día <input type="date" value={fecha} max={hoyISO()} onChange={(e) => e.target.value && setFecha(e.target.value)} />
         </label>
-        <select value={cajero} onChange={(e) => setCajero(e.target.value)} aria-label="Cajero">
-          <option value="">Todos los cajeros</option>
-          {cajeros.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        {!esCajera && (
+          <select value={cajero} onChange={(e) => setCajero(e.target.value)} aria-label="Cajero">
+            <option value="">Todos los cajeros</option>
+            {cajeros.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           type="search"
           placeholder="N° de cliente, nombre o comprobante"
@@ -120,7 +128,7 @@ export function ComprobantesPage() {
                 <th>Cliente</th>
                 <th>Forma</th>
                 <th className="num">Monto (Bs.)</th>
-                <th>Cajero</th>
+                {!esCajera && <th>Cajero</th>}
                 <th>Factura</th>
                 <th>Impreso</th>
                 <th></th>
@@ -143,7 +151,7 @@ export function ComprobantesPage() {
                   <td className="num">
                     <span className={f.anulacion ? "tachado" : undefined}>{formatoBs(aCentavos(f.monto))}</span>
                   </td>
-                  <td>{f.cajero}</td>
+                  {!esCajera && <td>{f.cajero}</td>}
                   <td>
                     {f.facturas.map((factura, i) => (
                       <div key={i}>{factura}</div>
@@ -163,9 +171,11 @@ export function ComprobantesPage() {
                       <span className="estado estado--error">Anulado</span>
                     ) : (
                       <div className="acciones">
-                        <Link className="boton-secundario boton-chico" to={`/comprobante/${f.tipo}/${f.id}?imprimir=1`}>
-                          {f.impresiones === 0 ? "Imprimir" : "Reimprimir"}
-                        </Link>
+                        {(!esCajera || f.impresiones === 0) && (
+                          <Link className="boton-secundario boton-chico" to={`/comprobante/${f.tipo}/${f.id}?imprimir=1`}>
+                            {f.impresiones === 0 ? "Imprimir" : "Reimprimir"}
+                          </Link>
+                        )}
                         {f.se_puede_anular && (
                           <button
                             className="boton-secundario boton-chico boton-anular"
@@ -183,14 +193,14 @@ export function ComprobantesPage() {
                 </tr>
                 {f.anulacion && (
                   <tr className="fila--anulada fila--detalle">
-                    <td colSpan={9}>
+                    <td colSpan={columnas}>
                       Anulado por {f.anulacion.por} a las {hora(f.anulacion.en)}. Motivo: {f.anulacion.motivo}
                     </td>
                   </tr>
                 )}
                 {anulando === `${f.tipo}-${f.id}` && (
                   <tr className="fila--detalle">
-                    <td colSpan={9}>
+                    <td colSpan={columnas}>
                       <form className="anular" onSubmit={(e) => onAnular(e, f)}>
                         <span>
                           Anular <strong>{f.numero}</strong> (Bs. {formatoBs(aCentavos(f.monto))}
@@ -220,7 +230,7 @@ export function ComprobantesPage() {
               ))}
               {visibles.length === 0 && (
                 <tr>
-                  <td colSpan={9}>{filas.length === 0 ? "No hubo cobros en el panel este día." : "Ningún cobro coincide con el filtro."}</td>
+                  <td colSpan={columnas}>{filas.length === 0 ? "No hubo cobros en el panel este día." : "Ningún cobro coincide con el filtro."}</td>
                 </tr>
               )}
             </tbody>

@@ -9,6 +9,7 @@ import { CajaPage } from "./pages/CajaPage";
 import { ComprobantePage } from "./pages/ComprobantePage";
 import { CajerosPage } from "./pages/CajerosPage";
 import { ComprobantesPage } from "./pages/ComprobantesPage";
+import { ReporteQRPage } from "./pages/ReporteQRPage";
 import { ContrasenaPage } from "./pages/ContrasenaPage";
 import { ConsultaDeudaPage } from "./pages/ConsultaDeudaPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -36,6 +37,14 @@ export default function App() {
           element={
             <ProtectedRoute esDeCobro>
               <TransaccionesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reportes-qr/:tipo"
+          element={
+            <ProtectedRoute>
+              <ReporteQRPage />
             </ProtectedRoute>
           }
         />
@@ -82,7 +91,7 @@ export default function App() {
         <Route
           path="/comprobantes"
           element={
-            <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
+            <ProtectedRoute rolesPermitidos={["cajera", "supervisor", "admin"]}>
               <ComprobantesPage />
             </ProtectedRoute>
           }

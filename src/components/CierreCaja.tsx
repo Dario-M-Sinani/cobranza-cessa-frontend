@@ -20,6 +20,16 @@ const CORTES: { clave: string; etiqueta: string; centavos: number }[] = [
   { clave: "010", etiqueta: "0,10", centavos: 10 },
 ];
 
+// Dólares, como el diálogo "Dólares" del cierre en la app Java (Sus 100 a Sus 1). En los cortes
+// guardados de la caja vienen con el prefijo "sus_".
+const CORTES_SUS: { clave: string; etiqueta: string; centavos: number }[] = ["100", "50", "20", "10", "5", "2", "1"].map(
+  (c) => ({ clave: `sus_${c}`, etiqueta: c, centavos: Number(c) * 100 }),
+);
+
+function contar(tabla: { clave: string; centavos: number }[], cortes: Record<string, string>): number {
+  return tabla.reduce((suma, c) => suma + (parseInt(cortes[c.clave] || "0", 10) || 0) * c.centavos, 0);
+}
+
 const DOCUMENTO_VACIO = { ente_id: "", banco_id: "", numero: "", importe: "", fecha_registro: "", fecha_vencimiento: "", indice: "" };
 
 function fechaCorta(aaaammdd: string): string {
@@ -47,18 +57,24 @@ export function CierreCaja({ caja, onCerrada }: { caja: Caja; onCerrada: () => v
   const [aviso, setAviso] = useState<string | null>(null);
   const [cortes, setCortes] = useState<Record<string, string>>({});
   const [efectivoGuardado, setEfectivoGuardado] = useState(false);
+  const [dolaresGuardados, setDolaresGuardados] = useState(false);
+  const [conDolares, setConDolares] = useState(false);
   const [documento, setDocumento] = useState(DOCUMENTO_VACIO);
   const [descripcion, setDescripcion] = useState("");
   const [confirmando, setConfirmando] = useState(false);
-  const [enCurso, setEnCurso] = useState<"efectivo" | "documento" | "cerrar" | null>(null);
+  const [enCurso, setEnCurso] = useState<"efectivo" | "dolares" | "documento" | "cerrar" | null>(null);
 
   async function cargar() {
     try {
       const d = await obtenerCierreCaja(caja.id);
       setDatos(d);
-      if (Object.keys(d.cortes ?? {}).length) {
-        setCortes(Object.fromEntries(Object.entries(d.cortes).map(([k, v]) => [k, String(v)])));
-        setEfectivoGuardado(true);
+      const guardados = d.cortes ?? {};
+      if (Object.keys(guardados).length) {
+        setCortes(Object.fromEntries(Object.entries(guardados).map(([k, v]) => [k, String(v)])));
+        setEfectivoGuardado(CORTES.some((c) => c.clave in guardados));
+        const hayDolares = CORTES_SUS.some((c) => c.clave in guardados);
+        setDolaresGuardados(hayDolares);
+        if (hayDolares) setConDolares(true);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo cargar el cierre de caja.");
@@ -70,16 +86,36 @@ export function CierreCaja({ caja, onCerrada }: { caja: Caja; onCerrada: () => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caja.id]);
 
-  const totalEfectivo = useMemo(
-    () => CORTES.reduce((suma, c) => suma + (parseInt(cortes[c.clave] || "0", 10) || 0) * c.centavos, 0),
-    [cortes],
-  );
+  const totalEfectivo = useMemo(() => contar(CORTES, cortes), [cortes]);
+  const totalDolares = useMemo(() => contar(CORTES_SUS, cortes), [cortes]);
   const enteElegido = datos?.entes?.find((e) => String(e.id) === documento.ente_id);
   const esCheque = enteElegido?.descripcion.toUpperCase() === "CHEQUE";
 
   function cambiarCorte(clave: string, valor: string) {
     setCortes((previo) => ({ ...previo, [clave]: valor.replace(/\D/g, "").slice(0, 5) }));
-    setEfectivoGuardado(false);
+    if (clave.startsWith("sus_")) setDolaresGuardados(false);
+    else setEfectivoGuardado(false);
+  }
+
+  async function onGuardarDolares(evento: FormEvent) {
+    evento.preventDefault();
+    setEnCurso("dolares");
+    setError(null);
+    setAviso(null);
+    try {
+      await declararEfectivo(
+        caja.id,
+        Object.fromEntries(CORTES_SUS.map((c) => [c.etiqueta, parseInt(cortes[c.clave] || "0", 10) || 0])),
+        "D",
+      );
+      setDolaresGuardados(true);
+      setAviso(`Dólares guardados: Sus. ${formatoBs(totalDolares)}.`);
+      await cargar();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudieron guardar los dólares.");
+    } finally {
+      setEnCurso(null);
+    }
   }
 
   async function onGuardarEfectivo(evento: FormEvent) {
@@ -230,6 +266,44 @@ export function CierreCaja({ caja, onCerrada }: { caja: Caja; onCerrada: () => v
               </button>
             </div>
           </form>
+
+          {conDolares ? (
+            <form onSubmit={onGuardarDolares} className="cierre__dolares">
+              <p className="cierre__subtitulo">
+                <Icono nombre="billete" tamano={18} /> Dólares
+              </p>
+              <div className="cortes">
+                {CORTES_SUS.map((c) => {
+                  const cantidad = parseInt(cortes[c.clave] || "0", 10) || 0;
+                  return (
+                    <label key={c.clave} className={`corte corte--sus${cantidad ? " corte--con-valor" : ""}`}>
+                      <span className="corte__billete">$ {c.etiqueta}</span>
+                      <input
+                        inputMode="numeric"
+                        placeholder="0"
+                        aria-label={`Cantidad de billetes de ${c.etiqueta} dólares`}
+                        value={cortes[c.clave] ?? ""}
+                        onChange={(e) => cambiarCorte(c.clave, e.target.value)}
+                      />
+                      <small>{cantidad ? `Sus. ${formatoBs(cantidad * c.centavos)}` : ""}</small>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="total-efectivo">
+                <span className="total-efectivo__etiqueta">Total en dólares</span>
+                <span className="total-efectivo__monto">Sus. {formatoBs(totalDolares)}</span>
+                {dolaresGuardados && <span className="estado estado--abierta">Guardado en el SIIC</span>}
+                <button type="submit" disabled={enCurso === "dolares"}>
+                  {enCurso === "dolares" ? "Guardando..." : dolaresGuardados ? "Actualizar dólares" : "Guardar dólares"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button type="button" className="boton-secundario cierre__agregar-dolares" onClick={() => setConDolares(true)}>
+              + Recibí dólares
+            </button>
+          )}
         </div>
       </div>
 
