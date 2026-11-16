@@ -3,6 +3,7 @@ import { ApiError } from "../api/client";
 import { cancelarTransaccion, consultarEstadoQR } from "../api/cobranza";
 import type { TransaccionQR } from "../api/types";
 import { aCentavos, formatoBs } from "../utils/dinero";
+import { BotonFactura } from "./BotonFactura";
 import { Icono } from "./Icono";
 
 const CONSULTA_CADA_MS = 3000;
@@ -80,8 +81,9 @@ export function TarjetaQR(props: {
           {qr.factura?.numero_factura ? ` · Factura ${qr.factura.numero_factura}` : " · La factura se registra en el SIIC en un momento"}
         </p>
         <div className="acciones">
+          <BotonFactura facturasIds={qr.factura ? [qr.factura.id] : []} />
           <button className="boton-secundario" onClick={() => props.onImprimir(qr.id)}>
-            Imprimir comprobante
+            Comprobante interno
           </button>
           <button ref={siguiente} onClick={props.onSiguiente}>
             Siguiente cliente (Enter)

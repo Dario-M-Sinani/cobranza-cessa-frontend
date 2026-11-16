@@ -10,6 +10,7 @@ import { ComprobantePage } from "./pages/ComprobantePage";
 import { CajerosPage } from "./pages/CajerosPage";
 import { ComprobantesPage } from "./pages/ComprobantesPage";
 import { ReporteQRPage } from "./pages/ReporteQRPage";
+import { CotizacionPage } from "./pages/CotizacionPage";
 import { ContrasenaPage } from "./pages/ContrasenaPage";
 import { ConsultaDeudaPage } from "./pages/ConsultaDeudaPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -49,6 +50,14 @@ export default function App() {
           }
         />
         <Route
+          path="/cotizacion"
+          element={
+            <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
+              <CotizacionPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/caja"
           element={
             <ProtectedRoute esDeCobro>
@@ -75,7 +84,7 @@ export default function App() {
         <Route
           path="/cajeros"
           element={
-            <ProtectedRoute rolesPermitidos={["supervisor", "admin"]}>
+            <ProtectedRoute rolesPermitidos={["supervisor", "admin", "entidad"]}>
               <CajerosPage />
             </ProtectedRoute>
           }
@@ -83,7 +92,7 @@ export default function App() {
         <Route
           path="/contrasena"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute rolesPermitidos={["cajera", "supervisor", "admin", "entidad"]}>
               <ContrasenaPage />
             </ProtectedRoute>
           }

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ProformaCobro } from "../components/ProformaCobro";
 import { TarjetaQR } from "../components/TarjetaQR";
+import { BotonFactura } from "../components/BotonFactura";
+import { ChipDolar } from "../components/ChipDolar";
 import type { CobroAgrupado, CobroEfectivo, Deuda, FormasPago, ItemDeuda, TransaccionQR } from "../api/types";
 import {
   consultarDeuda,
@@ -282,6 +284,7 @@ export function ConsultaDeudaPage() {
     <div className="pagina pagina--cobro">
       <div className="pagina__encabezado">
         <h1>Cobrar</h1>
+        <ChipDolar />
         <span className="atajos">
           <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo
         </span>
@@ -729,8 +732,9 @@ function ResultadoEfectivo(props: {
         </tbody>
       </table>
       <div className="acciones">
+        <BotonFactura facturasIds={detalle.flatMap((c) => (c.factura ? [c.factura.id] : []))} />
         <button className="boton-secundario" onClick={props.onImprimir}>
-          Imprimir comprobante
+          Comprobante interno
         </button>
         <button ref={siguiente} onClick={props.onSiguiente}>
           Siguiente cliente (Enter)

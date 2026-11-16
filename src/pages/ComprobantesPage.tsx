@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { anularComprobante, listarComprobantesDelDia, type ComprobanteDelDia } from "../api/cobranza";
 import { ApiError } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { BotonFactura } from "../components/BotonFactura";
 import { aCentavos, formatoBs } from "../utils/dinero";
 import { fechaISO, hoyISO, hora } from "../utils/fechas";
 
@@ -171,6 +172,7 @@ export function ComprobantesPage() {
                       <span className="estado estado--error">Anulado</span>
                     ) : (
                       <div className="acciones">
+                        <BotonFactura chico facturasIds={f.facturas_ids ?? []} etiqueta={f.facturas_ids?.length > 1 ? "Facturas" : "Factura"} />
                         {(!esCajera || f.impresiones === 0) && (
                           <Link className="boton-secundario boton-chico" to={`/comprobante/${f.tipo}/${f.id}?imprimir=1`}>
                             {f.impresiones === 0 ? "Imprimir" : "Reimprimir"}

@@ -17,6 +17,8 @@ export interface SesionUsuario {
   cajaSiic: boolean;
   // "nest": entra con su usuario del sistema de cobranzas (clave del SIIC); "local": usuario del panel.
   origen: "nest" | "local";
+  // Entidad financiera del usuario de la Nest (1 = CESSA). El responsable de entidad queda limitado a la suya.
+  entidadFinancieraId: number | null;
 }
 
 function decodePayload(token: string): Record<string, unknown> {
@@ -37,6 +39,7 @@ export function sesionDesdeToken(access: string): SesionUsuario {
     nombre: String(payload.nombre ?? payload.username ?? ""),
     cajaSiic: payload.caja_siic === true,
     origen: payload.origen === "nest" ? "nest" : "local",
+    entidadFinancieraId: typeof payload.entidad_financiera_id === "number" ? payload.entidad_financiera_id : null,
   };
 }
 

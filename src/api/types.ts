@@ -1,4 +1,5 @@
-export type Rol = "cajera" | "supervisor" | "admin";
+// "entidad": responsable de un banco (ENTIDAD_FINANCIERA de la Nest): solo ve sus cajeros y sus transacciones.
+export type Rol = "cajera" | "supervisor" | "admin" | "entidad";
 
 export interface Cliente {
   id: number;
@@ -76,7 +77,8 @@ export interface TransaccionQR {
   items_cobrados: ItemDeuda[];
 }
 
-export type EstadoCaja = "abierta" | "cerrada";
+// "sin_cerrar": caja del SIIC de un día anterior que nadie cerró (se cierra en el SIIC; con ella ya no se cobra).
+export type EstadoCaja = "abierta" | "cerrada" | "sin_cerrar";
 
 export interface Caja {
   id: number;

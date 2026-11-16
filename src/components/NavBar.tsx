@@ -21,7 +21,8 @@ export function NavBar() {
       </div>
       {sesion && (
         <div className="navbar__links">
-          {!sesion.soloConsulta && (
+          {sesion.rol === "entidad" && <Link to="/cajeros">Cajeros</Link>}
+          {!sesion.soloConsulta && sesion.rol !== "entidad" && (
             <>
               <Link to="/deuda">Cobrar</Link>
               <Link to="/transacciones">Transacciones</Link>
@@ -35,6 +36,7 @@ export function NavBar() {
               <Link to="/comprobantes">Comprobantes</Link>
               <Link to="/cajeros">Cajeros</Link>
               <Link to="/pagos-web">Pagos web</Link>
+              <Link to="/cotizacion">Dólar</Link>
             </>
           )}
           {sesion.rol === "admin" && (
@@ -57,7 +59,7 @@ export function NavBar() {
         {sesion && (
           <>
             <Link to="/contrasena" className="navbar__perfil" title="Cambiar mi contraseña">
-              {sesion.nombre && sesion.nombre !== sesion.username ? sesion.nombre : sesion.username} · {sesion.rol}
+              {sesion.nombre && sesion.nombre !== sesion.username ? sesion.nombre : sesion.username} · {sesion.rol === "entidad" ? "responsable de entidad" : sesion.rol}
               {sesion.soloConsulta && " · solo consulta"}
             </Link>
             <button onClick={salir}>Salir</button>

@@ -7,6 +7,7 @@ const ETIQUETAS_ROL: Record<Rol, string> = {
   cajera: "Cajero/a",
   supervisor: "Supervisor",
   admin: "Administrador",
+  entidad: "Responsable de entidad", // solo llega desde la Nest; no se crea acá
 };
 
 export function UsuariosPage() {

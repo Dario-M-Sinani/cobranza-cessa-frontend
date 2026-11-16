@@ -853,3 +853,51 @@ a.boton-secundario:hover {
   filter: brightness(1.08);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--acento) 30%, transparent);
 }
+
+/* ---------- Factura del SIIC al cobrar (components/BotonFactura.tsx) ---------- */
+.boton-factura__error {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+/* ---------- Cotización del dólar (components/ChipDolar.tsx, pages/CotizacionPage.tsx) ---------- */
+.chip-dolar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f6b3a;
+  background: #e3f7e9;
+}
+
+:root[data-theme="dark"] .chip-dolar {
+  color: #7fdc9f;
+  background: rgb(46 125 79 / 0.18);
+}
+
+.chip-dolar--alerta {
+  color: var(--peligro);
+  background: #fbe6e6;
+}
+
+:root[data-theme="dark"] .chip-dolar--alerta {
+  background: rgb(220 70 70 / 0.16);
+}
+
+.cierre__subtitulo .chip-dolar {
+  margin-left: 8px;
+}
+
+.cotizacion__alerta {
+  margin-bottom: 12px;
+}
+
+/* Caja del SIIC de otro día que nadie cerró (EstadoCaja "sin_cerrar"). */
+.estado--sin_cerrar {
+  background: #fff4d6;
+  color: #8a6100;
+}

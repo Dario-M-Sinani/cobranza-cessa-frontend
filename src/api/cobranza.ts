@@ -205,6 +205,7 @@ export interface ComprobanteDelDia {
   monto: string;
   clientes: { codigo: string; nombre: string }[];
   facturas: string[];
+  facturas_ids: number[]; // para abrir el PDF de la factura del SIIC
   impresiones: number;
   ultima_impresion: string | null;
   anulacion: { por: string; en: string; motivo: string } | null;
@@ -307,4 +308,32 @@ export async function exportarQRTxt(filtros: FiltrosQR) {
   enlace.download = `qr_${filtros.desde.replaceAll("-", "")}_${filtros.hasta.replaceAll("-", "")}.txt`;
   enlace.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------- Cotización del dólar: la del SIIC (manda, con ella se cierran las cajas) y la oficial del BCB ----------
+export interface CotizacionDolar {
+  fecha: string;
+  siic: string | null;
+  siic_leida_en: string | null;
+  siic_error: string;
+  bcb: string | null;
+  bcb_vigencia: string;
+  bcb_fuente: string;
+  bcb_leida_en: string | null;
+  bcb_error: string;
+  alertas: { tipo: "sin_siic" | "diferencia"; mensaje: string }[];
+}
+
+export function obtenerCotizacionDolar() {
+  return apiFetch<CotizacionDolar>("/cotizacion-dolar/");
+}
+
+export function historialCotizacionDolar(desde: string, hasta: string) {
+  return apiFetch<{ desde: string; hasta: string; dias: CotizacionDolar[] }>(
+    `/cotizacion-dolar/historial/?desde=${desde}&hasta=${hasta}`
+  );
+}
+
+export function releerCotizacionBcb() {
+  return apiFetch<CotizacionDolar>("/cotizacion-dolar/releer-bcb/", { method: "POST" });
 }

@@ -9,6 +9,7 @@ import { fechaISO, hoyISO } from "../utils/fechas";
 const ETIQUETAS_ESTADO_CAJA: Record<string, string> = {
   abierta: "Abierta",
   cerrada: "Cerrada",
+  sin_cerrar: "Quedó sin cerrar",
 };
 
 function bs(monto: string | number): string {

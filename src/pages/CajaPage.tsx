@@ -16,11 +16,13 @@ import type { AgenciasCaja, AperturaCajaFueraDeHorario, Caja, ResumenCaja } from
 import { aCentavos, formatoBs } from "../utils/dinero";
 import { useAuth } from "../context/AuthContext";
 import { CierreCaja } from "../components/CierreCaja";
+import { ChipDolar } from "../components/ChipDolar";
 import { Icono } from "../components/Icono";
 
 const ETIQUETAS_ESTADO_CAJA: Record<string, string> = {
   abierta: "Abierta",
   cerrada: "Cerrada",
+  sin_cerrar: "Quedó sin cerrar",
 };
 
 function formatearFecha(iso: string | null): string {
@@ -91,6 +93,9 @@ export function CajaPage() {
     sesion?.rol === "cajera" && sesion.cajaSiic && !miCajaAbierta
       ? cajas.find((c) => c.estado === "cerrada" && c.caja_codigo && new Date(c.creada_en).toDateString() === hoy)
       : undefined;
+
+  // Cajas del SIIC de días anteriores que nadie cerró: la cajera abre la de hoy, pero tiene que avisar.
+  const sinCerrar = sesion?.rol === "cajera" ? cajas.filter((c) => c.estado === "sin_cerrar") : [];
 
   async function onAbrirMiCaja(evento?: FormEvent) {
     evento?.preventDefault();
@@ -189,8 +194,15 @@ export function CajaPage() {
     <div className="pagina">
       <div className="pagina__encabezado">
         <h1>Caja</h1>
+        <ChipDolar />
       </div>
       {error && <p className="mensaje-error">{error}</p>}
+      {sinCerrar.map((c) => (
+        <p key={c.id} className="aviso">
+          <Icono nombre="alerta" tamano={16} /> Tu caja {c.caja_codigo} del {new Date(c.abierta_en).toLocaleDateString("es-BO")} quedó sin
+          cerrar. Avisa a tu supervisora: se cierra en el SIIC. Para cobrar hoy, abre la caja de hoy.
+        </p>
+      ))}
 
       {sesion?.rol === "cajera" &&
         (miCajaAbierta ? (

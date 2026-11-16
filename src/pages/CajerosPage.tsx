@@ -57,9 +57,11 @@ function fichaNueva(entidadId: number): FichaCajero {
 export function CajerosPage() {
   const { sesion } = useAuth();
   const esAdmin = sesion?.rol === "admin";
+  // Responsable de un banco: solo su entidad (el backend la fuerza igual).
+  const esResponsable = sesion?.rol === "entidad";
   const [cajeros, setCajeros] = useState<CajeroResumen[]>([]);
   const [entidades, setEntidades] = useState<Entidad[]>([]);
-  const [entidad, setEntidad] = useState(0);
+  const [entidad, setEntidad] = useState(() => (esResponsable ? (sesion?.entidadFinancieraId ?? 0) : 0));
   const [busqueda, setBusqueda] = useState("");
   const [soloConCaja, setSoloConCaja] = useState(false);
   const [cargando, setCargando] = useState(true);
@@ -156,7 +158,7 @@ export function CajerosPage() {
   return (
     <div className="pagina pagina--ancha">
       <div className="pagina__encabezado">
-        <h1>Cajeros</h1>
+        <h1>{esResponsable && entidades.length === 1 ? `Cajeros de ${entidades[0].descripcion}` : "Cajeros"}</h1>
         {esAdmin && (
           <button onClick={() => { setFicha(fichaNueva(entidad || 1)); setEditando(true); setAviso(null); }}>
             + Nuevo cajero
@@ -164,10 +166,14 @@ export function CajerosPage() {
         )}
       </div>
       <p className="detalle-fecha">
-        Usuarios del sistema de cobranzas de CESSA y de los bancos.{" "}
-        {esAdmin
-          ? "Al crear uno se da de alta a la vez en el sistema de cobranzas y como operador en el SIIC."
-          : "Solo Sistemas puede crearlos o modificarlos."}
+        {esResponsable
+          ? "Los cajeros de tu entidad: quién tiene caja abierta hoy y sus transacciones (detalle, facturas y anular las del día). Para crear o modificar un cajero, pídelo a Sistemas de CESSA."
+          : <>
+              Usuarios del sistema de cobranzas de CESSA y de los bancos.{" "}
+              {esAdmin
+                ? "Al crear uno se da de alta a la vez en el sistema de cobranzas y como operador en el SIIC."
+                : "Solo Sistemas puede crearlos o modificarlos."}
+            </>}
       </p>
 
       <div className="tarjetas-resumen">
@@ -186,7 +192,7 @@ export function CajerosPage() {
       </div>
 
       <div className="filtros">
-        <select value={entidad} onChange={(e) => setEntidad(Number(e.target.value))} aria-label="Entidad">
+        <select value={entidad} onChange={(e) => setEntidad(Number(e.target.value))} aria-label="Entidad" hidden={esResponsable}>
           <option value={0}>Todas las entidades</option>
           {entidades.map((e) => (
             <option key={e.id} value={e.id}>

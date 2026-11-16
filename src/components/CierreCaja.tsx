@@ -3,6 +3,7 @@ import { ApiError } from "../api/client";
 import { cerrarCaja, declararEfectivo, guardarDocumentoCierre, obtenerCierreCaja } from "../api/cobranza";
 import type { Caja, CierreCaja as DatosCierre, DocumentoCierre } from "../api/types";
 import { aCentavos, formatoBs } from "../utils/dinero";
+import { ChipDolar } from "./ChipDolar";
 import { Icono } from "./Icono";
 
 // Cortes de billetes y monedas en Bs, como el arqueo de la app Java (de Bs 200 a Bs 0,10).
@@ -271,6 +272,7 @@ export function CierreCaja({ caja, onCerrada }: { caja: Caja; onCerrada: () => v
             <form onSubmit={onGuardarDolares} className="cierre__dolares">
               <p className="cierre__subtitulo">
                 <Icono nombre="billete" tamano={18} /> Dólares
+                <ChipDolar texto="Se convierten a bolivianos con la cotización del SIIC" />
               </p>
               <div className="cortes">
                 {CORTES_SUS.map((c) => {

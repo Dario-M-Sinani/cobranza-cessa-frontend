@@ -16,6 +16,8 @@ export function ProtectedRoute({ children, rolesPermitidos, esDeCobro }: Props) 
   if (cargando) return <p className="pagina">Cargando...</p>;
   if (!sesion) return <Navigate to="/login" replace />;
   if (esDeCobro && sesion.soloConsulta) return <Navigate to="/pagos-web" replace />;
+  // El responsable de un banco no cobra ni ve el resto del panel: solo Cajeros (y su contraseña).
+  if (sesion.rol === "entidad" && !rolesPermitidos?.includes("entidad")) return <Navigate to="/cajeros" replace />;
   if (rolesPermitidos && !rolesPermitidos.includes(sesion.rol)) {
     return <p className="pagina mensaje-error">No tienes permiso para ver esta página.</p>;
   }

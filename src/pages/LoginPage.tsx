@@ -18,8 +18,9 @@ export function LoginPage() {
     try {
       const sesion = await login(username, password);
       // La cajera arranca en Cobrar; supervisor/admin y el panel de solo consulta, en Pagos web.
+      // El responsable de un banco solo tiene Cajeros.
       const cobra = sesion.rol === "cajera" && !sesion.soloConsulta;
-      navigate(cobra ? "/deuda" : "/pagos-web");
+      navigate(sesion.rol === "entidad" ? "/cajeros" : cobra ? "/deuda" : "/pagos-web");
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
