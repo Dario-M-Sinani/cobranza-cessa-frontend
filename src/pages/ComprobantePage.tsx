@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   obtenerCobroAgrupado,
+  obtenerQRAgrupado,
   obtenerCobroEfectivo,
   obtenerTransaccion,
   registrarImpresion,
@@ -183,29 +184,31 @@ function ComprobanteIndividual() {
 
 export function ComprobantePage() {
   const { tipo } = useParams<{ tipo: string }>();
-  return tipo === "grupo" ? <ComprobanteGrupo /> : <ComprobanteIndividual />;
+  if (tipo === "grupo") return <ComprobanteGrupo />;
+  if (tipo === "qrgrupo") return <ComprobanteGrupo qr />;
+  return <ComprobanteIndividual />;
 }
 
 // Un pago en efectivo que cubrió a varios clientes: un solo comprobante con el detalle
-// de cada uno, lo recibido y el vuelto.
-function ComprobanteGrupo() {
+// de cada uno, lo recibido y el vuelto. Con `qr`: un QR de varios clientes (sin recibido ni vuelto).
+function ComprobanteGrupo({ qr = false }: { qr?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const [grupo, setGrupo] = useState<CobroAgrupado | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    obtenerCobroAgrupado(Number(id))
+    (qr ? obtenerQRAgrupado(Number(id)) : obtenerCobroAgrupado(Number(id)))
       .then(setGrupo)
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar el comprobante."));
-  }, [id]);
+  }, [id, qr]);
 
-  const impresion = useImpresion("grupo", Number(id), grupo !== null);
+  const impresion = useImpresion(qr ? "qrgrupo" : "grupo", Number(id), grupo !== null);
 
   if (error) return <p className="pagina mensaje-error">{error}</p>;
   if (!grupo) return <p className="pagina">Cargando...</p>;
 
   // Un documento (ej. un cheque) para varios clientes: todos los cobros llevan el mismo.
-  const documento = grupo.cobros[0]?.documento;
+  const documento = qr ? undefined : grupo.cobros[0]?.documento;
   const conDocumento = tieneDocumento(documento);
 
   return (
@@ -221,7 +224,10 @@ function ComprobanteGrupo() {
           <tbody>
             <tr>
               <td>N° interno</td>
-              <td>COMP-GR-{grupo.id}</td>
+              <td>
+                {qr ? "COMP-QG-" : "COMP-GR-"}
+                {grupo.id}
+              </td>
             </tr>
             <tr>
               <td>Fecha y hora</td>
@@ -230,7 +236,7 @@ function ComprobanteGrupo() {
             <tr>
               <td>Forma de pago</td>
               <td>
-                {formaDePago(documento)} · {grupo.cobros.length} clientes
+                {qr ? "QR" : formaDePago(documento)} · {grupo.cobros.length} clientes
               </td>
             </tr>
             {conDocumento && esCheque(documento) && (
@@ -284,7 +290,7 @@ function ComprobanteGrupo() {
               <td>Total cobrado</td>
               <td className="num">Bs. {formatoBs(aCentavos(grupo.monto_total))}</td>
             </tr>
-            {!conDocumento && (
+            {!conDocumento && !qr && (
               <>
                 <tr>
                   <td>Recibido</td>

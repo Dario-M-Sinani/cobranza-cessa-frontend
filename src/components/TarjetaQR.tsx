@@ -20,7 +20,8 @@ function transcurrido(desde: string, ahora: number): string {
  */
 export function TarjetaQR(props: {
   inicial: TransaccionQR;
-  onImprimir: (id: number) => void;
+  /** Ruta del comprobante: "qr/<id>" o, si es de varios clientes, "qrgrupo/<id>". */
+  onImprimir: (ruta: string) => void;
   onSiguiente: () => void;
 }) {
   const [imagen] = useState(() => props.inicial.imagen_qr_base64); // la pasarela no la vuelve a dar
@@ -66,7 +67,17 @@ export function TarjetaQR(props: {
     }
   }
 
-  const monto = `Bs. ${formatoBs(aCentavos(qr.monto_snapshot))}`;
+  const grupo = qr.grupo_qr ?? null;
+  const monto = `Bs. ${formatoBs(aCentavos(grupo ? grupo.monto_total : qr.monto_snapshot))}`;
+  // Quién paga: el cliente, o los clientes del QR de varios clientes.
+  const quien = grupo
+    ? `${grupo.clientes.length} clientes: ${grupo.clientes.map((c) => `${c.nombre} (${c.codigo})`).join(", ")}`
+    : `${qr.deuda.cliente.nombre} · ${qr.deuda.cliente.codigo_externo}`;
+  const facturasIds = grupo
+    ? grupo.clientes.flatMap((c) => (c.factura_id ? [c.factura_id] : []))
+    : qr.factura
+      ? [qr.factura.id]
+      : [];
 
   if (qr.estado === "pagado") {
     return (
@@ -77,12 +88,13 @@ export function TarjetaQR(props: {
         <p className="resultado__ok">Pago recibido</p>
         <p className="monto">{monto}</p>
         <p className="detalle-fecha">
-          {qr.deuda.cliente.nombre} · {qr.deuda.cliente.codigo_externo}
-          {qr.factura?.numero_factura ? ` · Factura ${qr.factura.numero_factura}` : " · La factura se registra en el SIIC en un momento"}
+          {quien}
+          {!grupo && (qr.factura?.numero_factura ? ` · Factura ${qr.factura.numero_factura}` : " · La factura se registra en el SIIC en un momento")}
+          {grupo && " · Una factura por cliente en el SIIC"}
         </p>
         <div className="acciones">
-          <BotonFactura facturasIds={qr.factura ? [qr.factura.id] : []} />
-          <button className="boton-secundario" onClick={() => props.onImprimir(qr.id)}>
+          <BotonFactura facturasIds={facturasIds} />
+          <button className="boton-secundario" onClick={() => props.onImprimir(grupo ? `qrgrupo/${grupo.id}` : `qr/${qr.id}`)}>
             Comprobante interno
           </button>
           <button ref={siguiente} onClick={props.onSiguiente}>
@@ -103,7 +115,7 @@ export function TarjetaQR(props: {
       <div className="tarjeta tarjeta-qr resultado qr-estado">
         <p className="resultado__ok resultado__ok--neutro">{textos[qr.estado] ?? `QR ${qr.estado}`}</p>
         <p className="detalle-fecha">
-          {qr.deuda.cliente.nombre} · {monto} · no se cobró nada.
+          {grupo ? `${grupo.clientes.length} clientes` : qr.deuda.cliente.nombre} · {monto} · no se cobró nada.
         </p>
         <div className="acciones">
           <button ref={siguiente} onClick={props.onSiguiente}>
@@ -123,9 +135,7 @@ export function TarjetaQR(props: {
         <p className="mensaje-error">La pasarela no devolvió una imagen de QR.</p>
       )}
       <p className="monto">{monto}</p>
-      <p className="detalle-fecha">
-        {qr.deuda.cliente.nombre} · {qr.deuda.cliente.codigo_externo}
-      </p>
+      <p className="detalle-fecha">{quien}</p>
       <p className="qr-estado__espera">
         <span className="qr-estado__pulso" aria-hidden="true" />
         Esperando el pago del cliente · {transcurrido(qr.creado_en, ahora)}

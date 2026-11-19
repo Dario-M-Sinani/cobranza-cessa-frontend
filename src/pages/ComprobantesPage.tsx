@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { anularComprobante, listarComprobantesDelDia, type ComprobanteDelDia } from "../api/cobranza";
 import { ApiError } from "../api/client";
+import { listarCajeros, type Entidad } from "../api/cajeros";
 import { useAuth } from "../context/AuthContext";
 import { BotonFactura } from "../components/BotonFactura";
 import { aCentavos, formatoBs } from "../utils/dinero";
@@ -20,6 +21,9 @@ export function ComprobantesPage() {
   const [fecha, setFecha] = useState(hoyISO());
   const [filas, setFilas] = useState<ComprobanteDelDia[]>([]);
   const [cajero, setCajero] = useState("");
+  // Como "Transacciones" de la app Java: primero la entidad (CESSA o un banco) y después el cajero.
+  const [entidad, setEntidad] = useState("");
+  const [nombresEntidad, setNombresEntidad] = useState<Entidad[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,18 +65,40 @@ export function ComprobantesPage() {
     };
   }, [fecha, recarga]);
 
-  const cajeros = useMemo(() => [...new Set(filas.map((f) => f.cajero))].sort(), [filas]);
+  // Nombres de las entidades (la Nest, con el usuario de quien mira); sin ella, se muestra el número.
+  useEffect(() => {
+    if (esCajera) return;
+    let vigente = true;
+    listarCajeros()
+      .then((r) => vigente && setNombresEntidad(r.entidades))
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [esCajera]);
+
+  const entidades = useMemo(() => {
+    const ids = [...new Set(filas.map((f) => (f.entidad_id === null ? "local" : String(f.entidad_id))))];
+    const nombre = (id: string) =>
+      id === "local" ? "Usuarios del panel" : nombresEntidad.find((e) => String(e.id) === id)?.descripcion ?? `Entidad ${id}`;
+    return ids.map((id) => ({ id, nombre: nombre(id) })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [filas, nombresEntidad]);
+
+  const deLaEntidad = (f: ComprobanteDelDia) => !entidad || (f.entidad_id === null ? "local" : String(f.entidad_id)) === entidad;
+
+  const cajeros = useMemo(() => [...new Set(filas.filter(deLaEntidad).map((f) => f.cajero))].sort(), [filas, entidad]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibles = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
     return filas.filter(
       (f) =>
+        deLaEntidad(f) &&
         (!cajero || f.cajero === cajero) &&
         (!texto ||
           f.numero.toLowerCase().includes(texto) ||
           f.clientes.some((c) => c.codigo.includes(texto) || c.nombre.toLowerCase().includes(texto)))
     );
-  }, [filas, cajero, busqueda]);
+  }, [filas, entidad, cajero, busqueda]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = visibles.reduce((suma, f) => suma + (f.anulacion ? 0 : aCentavos(f.monto)), 0);
   const anulados = visibles.filter((f) => f.anulacion).length;
@@ -92,6 +118,23 @@ export function ComprobantesPage() {
         <label>
           Día <input type="date" value={fecha} max={hoyISO()} onChange={(e) => e.target.value && setFecha(e.target.value)} />
         </label>
+        {!esCajera && entidades.length > 1 && (
+          <select
+            value={entidad}
+            onChange={(e) => {
+              setEntidad(e.target.value);
+              setCajero("");
+            }}
+            aria-label="Entidad"
+          >
+            <option value="">Todas las entidades</option>
+            {entidades.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nombre}
+              </option>
+            ))}
+          </select>
+        )}
         {!esCajera && (
           <select value={cajero} onChange={(e) => setCajero(e.target.value)} aria-label="Cajero">
             <option value="">Todos los cajeros</option>

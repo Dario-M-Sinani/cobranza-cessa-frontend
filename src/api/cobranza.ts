@@ -37,6 +37,16 @@ export function obtenerCobroEfectivo(id: number) {
 
 // `cantidadComprobantes`: los N comprobantes más antiguos (SIIC no deja saltear
 // ninguno). Si se omite, se cobra la deuda completa.
+/** Un solo QR por el total de varios clientes (como "Facturas programadas a pagar" + QR de la app Java). */
+export function generarQRAgrupado(items: { deuda_id: number; cantidad_comprobantes?: number }[]) {
+  return apiFetch<TransaccionQR>("/transacciones-qr/grupo/", { method: "POST", body: { items } });
+}
+
+/** Comprobante de un QR de varios clientes, con la misma forma que un cobro en efectivo de varios clientes. */
+export function obtenerQRAgrupado(id: number) {
+  return apiFetch<CobroAgrupado>(`/transacciones-qr/grupo/${id}/`);
+}
+
 export function generarTransaccionQR(deudaId: number, cantidadComprobantes?: number) {
   return apiFetch<TransaccionQR>("/transacciones-qr/", {
     method: "POST",
@@ -193,7 +203,7 @@ export function obtenerCobroAgrupado(id: number) {
   return apiFetch<CobroAgrupado>(`/cobros-agrupados/${id}/`);
 }
 
-export type TipoComprobante = "efectivo" | "grupo" | "qr";
+export type TipoComprobante = "efectivo" | "grupo" | "qr" | "qrgrupo";
 
 export interface ComprobanteDelDia {
   tipo: TipoComprobante;
@@ -210,6 +220,8 @@ export interface ComprobanteDelDia {
   ultima_impresion: string | null;
   anulacion: { por: string; en: string; motivo: string } | null;
   se_puede_anular: boolean;
+  /** Entidad financiera de la cajera (CESSA o un banco); null = usuario local del panel. */
+  entidad_id: number | null;
 }
 
 // Anula un cobro del día (supervisor/admin, con motivo). Un cobro de varios clientes se anula entero.

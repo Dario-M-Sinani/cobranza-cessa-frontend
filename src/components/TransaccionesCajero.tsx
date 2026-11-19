@@ -171,7 +171,7 @@ export function TransaccionesCajero({
             </thead>
             <tbody>
               {filas.map((t) => {
-                const sePuedeAnular = t.estado === "PAGADA" && t.origen === "" && t.fecha_creacion.slice(0, 10) === hoy;
+                const sePuedeAnular = t.estado === "PAGADA" && t.origen !== "web" && t.fecha_creacion.slice(0, 10) === hoy;
                 return (
                   <Fragment key={t.uuid}>
                     <tr className={t.estado === "ANULADA" ? "fila--anulada" : undefined}>

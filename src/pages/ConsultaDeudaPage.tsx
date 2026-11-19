@@ -7,6 +7,7 @@ import { ChipDolar } from "../components/ChipDolar";
 import type { CobroAgrupado, CobroEfectivo, Deuda, FormasPago, ItemDeuda, TransaccionQR } from "../api/types";
 import {
   consultarDeuda,
+  generarQRAgrupado,
   generarTransaccionQR,
   listarCajas,
   obtenerFormasPago,
@@ -265,12 +266,20 @@ export function ConsultaDeudaPage() {
   }
 
   async function onGenerarQR() {
-    if (conDeuda.length !== 1 || aCobrar <= 0) return;
+    if (conDeuda.length === 0 || aCobrar <= 0) return;
     const unico = conDeuda[0];
     setError(null);
     setEnviando(true);
     try {
-      setTransaccion(await generarTransaccionQR(unico.deuda.id, cobraTodo(unico) ? undefined : unico.cantidad));
+      setTransaccion(
+        conDeuda.length === 1
+          ? await generarTransaccionQR(unico.deuda.id, cobraTodo(unico) ? undefined : unico.cantidad)
+          : await generarQRAgrupado(
+              conDeuda.map((c) =>
+                cobraTodo(c) ? { deuda_id: c.deuda.id } : { deuda_id: c.deuda.id, cantidad_comprobantes: c.cantidad },
+              ),
+            ),
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo generar el QR.");
     } finally {
@@ -476,8 +485,7 @@ export function ConsultaDeudaPage() {
                       aria-selected={metodo === "qr"}
                       className={metodo === "qr" ? "pestana pestana--activa" : "pestana"}
                       onClick={() => setMetodo("qr")}
-                      disabled={conDeuda.length > 1}
-                      title={conDeuda.length > 1 ? "El QR se genera para un cliente a la vez" : undefined}
+                      title={conDeuda.length > 1 ? `Un solo QR por el total de los ${conDeuda.length} clientes` : undefined}
                     >
                       QR
                     </button>
@@ -569,7 +577,7 @@ export function ConsultaDeudaPage() {
                           : `Cobrar Bs. ${formatoBs(aCobrar)}${enteDocumento ? ` con ${enteDocumento.descripcion.toLowerCase()}` : ""}${varios ? ` (${conDeuda.length} clientes)` : ""}`}
                       </button>
                     </form>
-                  ) : metodo === "efectivo" || conDeuda.length > 1 ? (
+                  ) : metodo === "efectivo" ? (
                     <form className="efectivo" onSubmit={onCobrarEfectivo}>
                       <label>
                         Recibido (Bs.)
@@ -610,7 +618,8 @@ export function ConsultaDeudaPage() {
                   ) : (
                     <div className="efectivo">
                       <p className="detalle-fecha">
-                        Se genera un QR por Bs. {formatoBs(aCobrar)} para que el cliente pague desde su banco.
+                        Se genera un QR por Bs. {formatoBs(aCobrar)}
+                        {conDeuda.length > 1 ? ` que cubre a los ${conDeuda.length} clientes` : ""} para que el cliente pague desde su banco.
                       </p>
                       <button className="boton-principal" onClick={onGenerarQR} disabled={enviando}>
                         {enviando ? "Generando..." : `Generar QR por Bs. ${formatoBs(aCobrar)}`}
@@ -653,7 +662,7 @@ export function ConsultaDeudaPage() {
         <TarjetaQR
           key={transaccion.id}
           inicial={transaccion}
-          onImprimir={(id) => navigate(`/comprobante/qr/${id}?imprimir=1`)}
+          onImprimir={(ruta) => navigate(`/comprobante/${ruta}?imprimir=1`)}
           onSiguiente={nuevoCobro}
         />
       )}

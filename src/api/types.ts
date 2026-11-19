@@ -75,6 +75,12 @@ export interface TransaccionQR {
   // pasarela no permite volver a pedir la imagen después).
   imagen_qr_base64: string | null;
   items_cobrados: ItemDeuda[];
+  /** QR de varios clientes: un solo QR por el total; se pagan, vencen o anulan juntos. */
+  grupo_qr?: {
+    id: number;
+    monto_total: string;
+    clientes: { transaccion_id: number; codigo: string; nombre: string; monto: string; factura_id: number | null }[];
+  } | null;
 }
 
 // "sin_cerrar": caja del SIIC de un día anterior que nadie cerró (se cierra en el SIIC; con ella ya no se cobra).

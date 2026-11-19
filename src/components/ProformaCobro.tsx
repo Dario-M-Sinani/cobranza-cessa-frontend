@@ -93,6 +93,20 @@ export function ProformaCobro({
     (c) => !texto || c.nro_cliente.includes(texto) || c.nombre.toLowerCase().includes(texto) || c.direccion.toLowerCase().includes(texto),
   );
   const elegidos = (proforma?.clientes ?? []).filter((c) => marcados.has(c.nro_cliente) && c.cantidad > 0);
+  // "Todos" de la app Java: marca (o desmarca) de una vez los visibles que tienen deuda.
+  const conDeudaVisibles = visibles.filter((c) => c.cantidad > 0);
+  const todosMarcados = conDeudaVisibles.length > 0 && conDeudaVisibles.every((c) => marcados.has(c.nro_cliente));
+
+  function alternarTodos() {
+    setMarcados((previo) => {
+      const nuevo = new Set(previo);
+      for (const c of conDeudaVisibles) {
+        if (todosMarcados) nuevo.delete(c.nro_cliente);
+        else nuevo.add(c.nro_cliente);
+      }
+      return nuevo;
+    });
+  }
   const total = elegidos.reduce((s, c) => s + aCentavos(c.total), 0);
 
   return (
@@ -147,7 +161,16 @@ export function ProformaCobro({
           <table className="tabla">
             <thead>
               <tr>
-                <th></th>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={todosMarcados}
+                    disabled={conDeudaVisibles.length === 0}
+                    onChange={alternarTodos}
+                    aria-label={todosMarcados ? "Desmarcar todos" : "Marcar todos"}
+                    title={todosMarcados ? "Desmarcar todos" : "Marcar todos los que tienen deuda"}
+                  />
+                </th>
                 <th>Cliente</th>
                 <th>Nombre / dirección</th>
                 <th>Categoría</th>
