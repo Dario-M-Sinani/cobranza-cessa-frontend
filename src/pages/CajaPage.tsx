@@ -194,7 +194,7 @@ export function CajaPage() {
     <div className="pagina">
       <div className="pagina__encabezado">
         <h1>Caja</h1>
-        <ChipDolar />
+        <ChipDolar discreto />
       </div>
       {error && <p className="mensaje-error">{error}</p>}
       {sinCerrar.map((c) => (

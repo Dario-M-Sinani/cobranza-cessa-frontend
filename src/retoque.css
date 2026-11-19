@@ -888,6 +888,41 @@ a.boton-secundario:hover {
   background: rgb(220 70 70 / 0.16);
 }
 
+/* En Cobrar y Caja: dato de apoyo, chico y en una esquina para no distraer. */
+.chip-dolar--discreto {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  z-index: 5;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--texto-tenue);
+  background: transparent;
+  opacity: 0.8;
+}
+
+.chip-dolar--discreto strong {
+  font-weight: 500;
+}
+
+:root[data-theme="dark"] .chip-dolar--discreto {
+  color: var(--texto-tenue);
+  background: transparent;
+}
+
+.chip-dolar--discreto.chip-dolar--alerta,
+:root[data-theme="dark"] .chip-dolar--discreto.chip-dolar--alerta {
+  color: var(--peligro);
+  opacity: 1;
+}
+
+@media print {
+  .chip-dolar--discreto {
+    display: none;
+  }
+}
+
 .cierre__subtitulo .chip-dolar {
   margin-left: 8px;
 }

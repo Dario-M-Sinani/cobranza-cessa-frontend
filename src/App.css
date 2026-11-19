@@ -466,8 +466,20 @@ kbd {
   background: color-mix(in srgb, var(--acento) 8%, transparent);
 }
 
-.tabla--comprobantes .fila--credito td:last-child {
+/* La nota de crédito resta en "Importe" (la anteúltima: la última es "Acumulado"). */
+.tabla--comprobantes .fila--credito td:nth-last-child(2) {
   color: var(--exito);
+}
+
+/* Siete columnas en la tarjeta del cliente: más compactas, y los encabezados pueden partirse. */
+.tabla--comprobantes th,
+.tabla--comprobantes td {
+  padding: 8px 6px;
+}
+
+.tabla--comprobantes th {
+  white-space: normal;
+  font-size: 13px;
 }
 
 .tabla--comprobantes input[type="checkbox"] {
@@ -1047,6 +1059,26 @@ a.boton-secundario {
 .cierre__observacion { display: flex; flex-direction: column; gap: 0.25rem; max-width: 480px; margin-bottom: 0.75rem; }
 .mensaje-ok { color: #15803d; }
 .monto--alerta { color: #b91c1c; }
+
+/* Cobro: "Último pago" (como la app Java) */
+.ultimo-pago {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: baseline;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--texto-tenue);
+}
+
+.ultimo-pago__titulo {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 
 /* Cotización: cargar la del BCB en el SIIC */
 .cotizacion__cargar {

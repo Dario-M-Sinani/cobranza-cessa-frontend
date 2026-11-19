@@ -36,6 +36,22 @@ function montoDe(entrada: EnCarrito): number {
   return items.slice(0, entrada.cantidad).reduce((suma, item) => suma + aCentavos(item.importe), 0);
 }
 
+// "ULTIMO PAGO" de la app Java: lo que se cobró en el cobro anterior, visible mientras se atiende al siguiente.
+interface UltimoPago {
+  clientes: number;
+  comprobantes: number;
+  deuda: number; // centavos: deuda total de esos clientes
+  pagado: number; // centavos
+  cambio: number; // centavos
+  forma: string;
+  hora: string;
+}
+
+function comprobantesDe(entrada: EnCarrito): number {
+  const items = entrada.deuda.items ?? [];
+  return items.length === 0 ? 1 : entrada.cantidad;
+}
+
 function cobraTodo(entrada: EnCarrito): boolean {
   const items = entrada.deuda.items ?? [];
   return items.length === 0 || entrada.cantidad === items.length;
@@ -72,6 +88,7 @@ export function ConsultaDeudaPage() {
   const [formasPago, setFormasPago] = useState<FormasPago | null>(null);
   const [documento, setDocumento] = useState(DOCUMENTO_VACIO);
   const [conProforma, setConProforma] = useState(false);
+  const [ultimoPago, setUltimoPago] = useState<UltimoPago | null>(null);
 
   const esCajera = sesion?.rol === "cajera";
   const actual: EnCarrito | null = carrito[activo] ?? null;
@@ -99,6 +116,35 @@ export function ConsultaDeudaPage() {
       .then((cajas) => setSinCajaAbierta(!cajas.some((c) => c.estado === "abierta")))
       .catch(() => setSinCajaAbierta(false));
   }, [esCajera]);
+
+  // Se anota al terminar cada cobro (con el carrito todavía cargado) y queda a la vista en el siguiente.
+  function anotarUltimoPago(pagado: number, cambio: number, forma: string) {
+    const cobrados = carrito.filter((e) => aCentavos(e.deuda.monto) > 0);
+    setUltimoPago({
+      clientes: cobrados.length,
+      comprobantes: cobrados.reduce((suma, e) => suma + comprobantesDe(e), 0),
+      deuda: cobrados.reduce((suma, e) => suma + aCentavos(e.deuda.monto), 0),
+      pagado,
+      cambio,
+      forma,
+      hora: new Date().toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" }),
+    });
+  }
+
+function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
+    const ente = documento && "ente" in documento ? documento.ente : "";
+    return ente ? ente.charAt(0) + ente.slice(1).toLowerCase() : "Efectivo";
+  }
+
+  function terminarEfectivo(cobro: CobroEfectivo) {
+    setCobroEfectivo(cobro);
+    anotarUltimoPago(aCentavos(cobro.monto_snapshot), aCentavos(cobro.vuelto), formaDe(cobro.documento));
+  }
+
+  function terminarAgrupado(grupo: CobroAgrupado) {
+    setCobroAgrupado(grupo);
+    anotarUltimoPago(aCentavos(grupo.monto_total), aCentavos(grupo.vuelto), formaDe(grupo.cobros[0]?.documento));
+  }
 
   function nuevoCobro() {
     setCodigoExterno("");
@@ -208,11 +254,11 @@ export function ConsultaDeudaPage() {
     try {
       if (conDeuda.length === 1) {
         const unico = conDeuda[0];
-        setCobroEfectivo(
+        terminarEfectivo(
           await registrarCobroEfectivo(unico.deuda.id, aDecimal(montoRecibido), cobraTodo(unico) ? undefined : unico.cantidad),
         );
       } else {
-        setCobroAgrupado(
+        terminarAgrupado(
           await registrarCobroAgrupado(
             aDecimal(montoRecibido),
             conDeuda.map((c) =>
@@ -244,11 +290,11 @@ export function ConsultaDeudaPage() {
     try {
       if (conDeuda.length === 1) {
         const unico = conDeuda[0];
-        setCobroEfectivo(
+        terminarEfectivo(
           await registrarCobroEfectivo(unico.deuda.id, aDecimal(aCobrar), cobraTodo(unico) ? undefined : unico.cantidad, datos),
         );
       } else {
-        setCobroAgrupado(
+        terminarAgrupado(
           await registrarCobroAgrupado(
             aDecimal(aCobrar),
             conDeuda.map((c) =>
@@ -293,7 +339,7 @@ export function ConsultaDeudaPage() {
     <div className="pagina pagina--cobro">
       <div className="pagina__encabezado">
         <h1>Cobrar</h1>
-        <ChipDolar />
+        <ChipDolar discreto />
         <span className="atajos">
           <kbd>Enter</kbd> buscar / cobrar · <kbd>Esc</kbd> cobro nuevo
         </span>
@@ -308,12 +354,27 @@ export function ConsultaDeudaPage() {
         </p>
       )}
 
+      {!terminado && carrito.length === 0 && ultimoPago && (
+        <div className="ultimo-pago" aria-label="Último pago">
+          <span className="ultimo-pago__titulo">Último pago · {ultimoPago.hora}</span>
+          <span>
+            {ultimoPago.clientes === 1 ? "1 cliente" : `${ultimoPago.clientes} clientes`} · {ultimoPago.comprobantes}{" "}
+            {ultimoPago.comprobantes === 1 ? "comprobante" : "comprobantes"}
+          </span>
+          <span>Total deuda: Bs. {formatoBs(ultimoPago.deuda)}</span>
+          <span>
+            Total pagado: <strong>Bs. {formatoBs(ultimoPago.pagado)}</strong> ({ultimoPago.forma})
+          </span>
+          <span>Cambio: Bs. {formatoBs(ultimoPago.cambio)}</span>
+        </div>
+      )}
+
       {!terminado && (
         <form className="buscador" onSubmit={onConsultar}>
           <input
             ref={codigoInputRef}
             inputMode="text"
-            placeholder={carrito.length ? "Agregar otro cliente al cobro (N° de cliente o de cuenta)" : "N° de cliente o de cuenta (05-059-07421)"}
+            placeholder={carrito.length ? "Agregar otro cliente al cobro (N° de cliente o de cuenta)" : "N° de cliente o de cuenta"}
             value={codigoExterno}
             onChange={(e) => setCodigoExterno(e.target.value)}
             autoFocus
@@ -382,11 +443,16 @@ export function ConsultaDeudaPage() {
                       <th>Vence</th>
                       <th className="num">Consumo (kWh)</th>
                       <th className="num">Importe (Bs.)</th>
+                      <th className="num" title="Lo que suma pagar hasta este comprobante (del más antiguo al más nuevo)">
+                        Acumulado
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, i) => {
                       const marcado = i < actual.cantidad;
+                      // Como "Acumulado" de la app Java: cuánto se paga si se cobra hasta este comprobante.
+                      const acumulado = items.slice(0, i + 1).reduce((suma, x) => suma + aCentavos(x.importe), 0);
                       const credito = aCentavos(item.importe) < 0;
                       return (
                         <tr
@@ -412,6 +478,7 @@ export function ConsultaDeudaPage() {
                           <td>{fechaCorta(item.fecha_vencimiento)}</td>
                           <td className="num">{formatoKwh(item.consumo_kwh)}</td>
                           <td className="num">{formatoBs(aCentavos(item.importe))}</td>
+                          <td className="num">{formatoBs(acumulado)}</td>
                         </tr>
                       );
                     })}
@@ -663,6 +730,7 @@ export function ConsultaDeudaPage() {
           key={transaccion.id}
           inicial={transaccion}
           onImprimir={(ruta) => navigate(`/comprobante/${ruta}?imprimir=1`)}
+          onPagado={(qr) => anotarUltimoPago(aCentavos(qr.grupo_qr ? qr.grupo_qr.monto_total : qr.monto_snapshot), 0, "QR")}
           onSiguiente={nuevoCobro}
         />
       )}

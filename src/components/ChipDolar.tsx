@@ -7,7 +7,8 @@ import { aCentavos, formatoBs } from "../utils/dinero";
  * está cargada, avisa: la caja no va a poder cerrar hasta que la carguen. Si falla, no muestra nada:
  * es un dato de apoyo, no tiene que trabar el cobro.
  */
-export function ChipDolar({ texto = "Dólar hoy (SIIC)" }: { texto?: string }) {
+/** `discreto`: chico, sin fondo, en la esquina inferior derecha de la pantalla (Cobrar y Caja). */
+export function ChipDolar({ texto = "Dólar hoy (SIIC)", discreto = false }: { texto?: string; discreto?: boolean }) {
   const [datos, setDatos] = useState<CotizacionDolar | null>(null);
 
   useEffect(() => {
@@ -23,13 +24,13 @@ export function ChipDolar({ texto = "Dólar hoy (SIIC)" }: { texto?: string }) {
   if (!datos) return null;
   if (datos.siic) {
     return (
-      <span className="chip-dolar" title={datos.bcb ? `Oficial BCB: Bs ${formatoBs(aCentavos(datos.bcb))}` : undefined}>
+      <span className={`chip-dolar${discreto ? " chip-dolar--discreto" : ""}`} title={datos.bcb ? `Oficial BCB: Bs ${formatoBs(aCentavos(datos.bcb))}` : undefined}>
         {texto}: <strong>Bs {formatoBs(aCentavos(datos.siic))}</strong>
       </span>
     );
   }
   if (datos.alertas.some((a) => a.tipo === "sin_siic")) {
-    return <span className="chip-dolar chip-dolar--alerta">Sin cotización del dólar en el SIIC hoy</span>;
+    return <span className={`chip-dolar chip-dolar--alerta${discreto ? " chip-dolar--discreto" : ""}`}>Sin cotización del dólar en el SIIC hoy</span>;
   }
   return null;
 }

@@ -99,7 +99,12 @@ export function CajerosPage() {
     return cajeros.filter(
       (c) =>
         (!soloConCaja || c.caja_hoy) &&
-        (!texto || c.username.toLowerCase().includes(texto) || c.nombre.toLowerCase().includes(texto)),
+        (!texto ||
+          c.username.toLowerCase().includes(texto) ||
+          c.nombre.toLowerCase().includes(texto) ||
+          // Por rol, como el buscador "usuario/rol" de la app Java: el código (CAJA) o su nombre (Cajero).
+          c.rol.toLowerCase().includes(texto) ||
+          (ROLES.find((r) => r.valor === c.rol)?.etiqueta.toLowerCase().includes(texto) ?? false)),
     );
   }, [cajeros, busqueda, soloConCaja]);
 
@@ -200,7 +205,7 @@ export function CajerosPage() {
             </option>
           ))}
         </select>
-        <input type="search" placeholder="Usuario o nombre" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+        <input type="search" placeholder="Usuario, nombre o rol" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
         <label className="casilla">
           <input type="checkbox" checked={soloConCaja} onChange={(e) => setSoloConCaja(e.target.checked)} /> Solo con caja abierta
         </label>

@@ -23,6 +23,8 @@ export function TarjetaQR(props: {
   /** Ruta del comprobante: "qr/<id>" o, si es de varios clientes, "qrgrupo/<id>". */
   onImprimir: (ruta: string) => void;
   onSiguiente: () => void;
+  /** Se llama una vez cuando el QR queda pagado (para el "Último pago" de la pantalla de cobro). */
+  onPagado?: (qr: TransaccionQR) => void;
 }) {
   const [imagen] = useState(() => props.inicial.imagen_qr_base64); // la pasarela no la vuelve a dar
   const [qr, setQr] = useState(props.inicial);
@@ -53,6 +55,13 @@ export function TarjetaQR(props: {
   useEffect(() => {
     if (!esperando) siguiente.current?.focus();
   }, [esperando]);
+
+  const avisado = useRef(false);
+  useEffect(() => {
+    if (qr.estado !== "pagado" || avisado.current) return;
+    avisado.current = true;
+    props.onPagado?.(qr);
+  }, [qr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function anular() {
     setAnulando(true);

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
-import { useAuth } from "../context/AuthContext";
+import { motivoDeSalida, useAuth } from "../context/AuthContext";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -10,6 +10,8 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // Si la sesión anterior se cerró sola por inactividad, se avisa una vez.
+  const [porInactividad] = useState(() => motivoDeSalida() === "inactividad");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -46,6 +48,7 @@ export function LoginPage() {
           Contraseña
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
+        {porInactividad && !error && <p className="aviso">Tu sesión se cerró por 30 minutos sin uso. Vuelve a ingresar.</p>}
         {error && <p className="mensaje-error">{error}</p>}
         <button type="submit" disabled={enviando}>
           {enviando ? "Ingresando..." : "Ingresar"}
