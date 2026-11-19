@@ -321,7 +321,27 @@ export interface CotizacionDolar {
   bcb_fuente: string;
   bcb_leida_en: string | null;
   bcb_error: string;
-  alertas: { tipo: "sin_siic" | "diferencia"; mensaje: string }[];
+  /** Último intento fallido de la carga automática de ese día. */
+  carga_error: string;
+  /** El panel carga solo la del BCB en el SIIC cuando falta. */
+  carga_automatica: boolean;
+  /** Cargas y correcciones del panel en el SIIC para ese día, de la más nueva a la más vieja. */
+  cambios: CambioCotizacion[];
+  alertas: { tipo: "sin_siic" | "carga_fallida" | "diferencia"; mensaje: string }[];
+}
+
+export interface CambioCotizacion {
+  fecha: string;
+  accion: "carga_automatica" | "carga_manual" | "correccion";
+  accion_texto: string;
+  valor_anterior: string | null;
+  valor_nuevo: string;
+  origen: string;
+  motivo: string;
+  /** null = la carga automática */
+  usuario: string | null;
+  tabla: string;
+  creado_en: string;
 }
 
 export function obtenerCotizacionDolar() {
@@ -336,4 +356,9 @@ export function historialCotizacionDolar(desde: string, hasta: string) {
 
 export function releerCotizacionBcb() {
   return apiFetch<CotizacionDolar>("/cotizacion-dolar/releer-bcb/", { method: "POST" });
+}
+
+/** Deja `valor` como cotización de ese día en el SIIC (la carga si falta, la corrige si tiene otra). Queda registrado. */
+export function cambiarCotizacionSiic(fecha: string, valor: string, motivo: string) {
+  return apiFetch<CotizacionDolar>(`/cotizacion-dolar/${fecha}/`, { method: "PUT", body: { valor, motivo } });
 }

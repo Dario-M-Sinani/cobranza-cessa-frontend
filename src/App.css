@@ -1047,3 +1047,19 @@ a.boton-secundario {
 .cierre__observacion { display: flex; flex-direction: column; gap: 0.25rem; max-width: 480px; margin-bottom: 0.75rem; }
 .mensaje-ok { color: #15803d; }
 .monto--alerta { color: #b91c1c; }
+
+/* Cotización: cargar la del BCB en el SIIC */
+.cotizacion__cargar {
+  margin-top: 8px;
+}
+
+.cotizacion__confirmar {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+}
+
+.cotizacion__confirmar p {
+  margin: 0 0 10px;
+}

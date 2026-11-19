@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import {
+  cambiarCotizacionSiic,
   historialCotizacionDolar,
   obtenerCotizacionDolar,
   releerCotizacionBcb,
+  type CambioCotizacion,
   type CotizacionDolar,
 } from "../api/cobranza";
 import { ApiError } from "../api/client";
@@ -25,6 +27,12 @@ function diferencia(c: CotizacionDolar): string {
   return Math.abs(d) < 0.005 ? "0" : (d > 0 ? "+" : "") + d.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
+function resumenCambio(c: CambioCotizacion): string {
+  const quien = c.usuario ?? "automático (BCB)";
+  const que = c.accion === "correccion" ? `Corregida de Bs ${bs(c.valor_anterior)} a ${bs(c.valor_nuevo)}` : `Cargada Bs ${bs(c.valor_nuevo)}`;
+  return `${que} · ${quien} · ${cuando(c.creado_en)}`;
+}
+
 function primeroDelMes(): string {
   return `${hoyISO().slice(0, 8)}01`;
 }
@@ -40,6 +48,11 @@ export function CotizacionPage() {
   const [dias, setDias] = useState<CotizacionDolar[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [releyendo, setReleyendo] = useState(false);
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const [valor, setValor] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
@@ -75,6 +88,32 @@ export function CotizacionPage() {
     }
   }
 
+  function abrirCorreccion() {
+    if (!hoy) return;
+    setAviso(null);
+    setValor(hoy.siic ?? hoy.bcb ?? "");
+    setMotivo("");
+    setCorrigiendo(true);
+  }
+
+  async function onGuardar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!hoy) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      const r = await cambiarCotizacionSiic(hoy.fecha, valor, motivo);
+      setHoy(r);
+      setAviso(`Cotización del SIIC de hoy: Bs ${bs(r.siic)}. Quedó registrado.`);
+      setCorrigiendo(false);
+      setRecarga((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo cambiar la cotización en el SIIC.");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   return (
     <div className="pagina pagina--ancha">
       <div className="pagina__encabezado">
@@ -88,6 +127,7 @@ export function CotizacionPage() {
         referencia oficial. Cada día queda registrado abajo como constancia.
       </p>
       {error && <p className="mensaje-error">{error}</p>}
+      {aviso && <p className="aviso">{aviso}</p>}
 
       {hoy && (
         <>
@@ -104,9 +144,38 @@ export function CotizacionPage() {
                 {hoy.siic_error
                   ? `No se pudo consultar: ${hoy.siic_error}`
                   : hoy.siic_leida_en
-                    ? `Leída ${cuando(hoy.siic_leida_en)} (ADMINDTA.COTIZA)`
+                    ? `Leída ${cuando(hoy.siic_leida_en)}`
                     : "Entra con tu usuario del sistema de cobranzas para consultarla."}
               </p>
+              {hoy.cambios[0] && <p className="detalle-fecha">{resumenCambio(hoy.cambios[0])}</p>}
+              {!hoy.siic && hoy.carga_automatica && !hoy.carga_error && (
+                <p className="detalle-fecha">Se carga sola con la del BCB en cuanto publique la vigencia de hoy.</p>
+              )}
+              {!corrigiendo && (
+                <button className="boton-secundario boton-chico cotizacion__cargar" onClick={abrirCorreccion}>
+                  {hoy.siic ? "Corregir" : "Cargar a mano"}
+                </button>
+              )}
+              {corrigiendo && (
+                <form className="cotizacion__confirmar" onSubmit={onGuardar}>
+                  <label>
+                    Cotización de hoy (Bs por $us)
+                    <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} required autoFocus />
+                  </label>
+                  <label>
+                    Motivo (queda registrado)
+                    <input value={motivo} onChange={(e) => setMotivo(e.target.value)} minLength={5} maxLength={300} required />
+                  </label>
+                  <div className="acciones">
+                    <button type="submit" disabled={guardando}>
+                      {guardando ? "Guardando..." : "Guardar en el SIIC"}
+                    </button>
+                    <button type="button" className="boton-secundario" onClick={() => setCorrigiendo(false)} disabled={guardando}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
             <div className="tarjeta stat">
               <p className="stat__etiqueta">Oficial BCB</p>
@@ -151,6 +220,7 @@ export function CotizacionPage() {
                 <th>Vigencia BCB</th>
                 <th>Leída SIIC</th>
                 <th>Leída BCB</th>
+                <th>Cargada / corregida</th>
                 <th>Estado</th>
               </tr>
             </thead>
@@ -167,13 +237,14 @@ export function CotizacionPage() {
                   </td>
                   <td className="sin-corte">{cuando(d.siic_leida_en)}</td>
                   <td className="sin-corte">{cuando(d.bcb_leida_en)}</td>
+                  <td>{d.cambios[0] ? resumenCambio(d.cambios[0]) : <span className="detalle-fecha">—</span>}</td>
                   <td>
                     {d.alertas.length === 0 ? (
                       d.siic && d.bcb ? <span className="estado estado--pagado">Coinciden</span> : <span className="detalle-fecha">Incompleto</span>
                     ) : (
                       d.alertas.map((a) => (
                         <span key={a.tipo} className="estado estado--error" title={a.mensaje}>
-                          {a.tipo === "sin_siic" ? "Sin cargar en SIIC" : "Distinta del BCB"}
+                          {a.tipo === "sin_siic" ? "Sin cargar en SIIC" : a.tipo === "carga_fallida" ? "Carga automática falló" : "Distinta del BCB"}
                         </span>
                       ))
                     )}
@@ -182,13 +253,53 @@ export function CotizacionPage() {
               ))}
               {dias.length === 0 && (
                 <tr>
-                  <td colSpan={8}>Sin registros en esas fechas. Se registra un día cuando alguien entra al panel o con la lectura de cada hora.</td>
+                  <td colSpan={9}>Sin registros en esas fechas. Se registra un día cuando alguien entra al panel o con la lectura de cada hora.</td>
                 </tr>
               )}
             </tbody>
           </table>
         )}
       </section>
+
+      {dias && dias.some((d) => d.cambios.length > 0) && (
+        <section className="tarjeta tarjeta--ancha">
+          <h2 className="tarjeta__titulo">
+            <Icono nombre="documento" /> Registro de cambios en el SIIC
+          </h2>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Cuándo</th>
+                <th>Día</th>
+                <th>Qué</th>
+                <th className="num">Antes</th>
+                <th className="num">Ahora</th>
+                <th>Quién</th>
+                <th>Origen / motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dias
+                .flatMap((d) => d.cambios)
+                .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
+                .map((c) => (
+                  <tr key={`${c.creado_en}-${c.fecha}`}>
+                    <td className="sin-corte">{cuando(c.creado_en)}</td>
+                    <td className="sin-corte">{fechaISO(c.fecha)}</td>
+                    <td>{c.accion_texto}</td>
+                    <td className="num">{bs(c.valor_anterior)}</td>
+                    <td className="num">{bs(c.valor_nuevo)}</td>
+                    <td>{c.usuario ?? "Automático"}</td>
+                    <td>
+                      {c.motivo || c.origen}
+                      {c.tabla && <span className="detalle-fecha"> · {c.tabla}</span>}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </div>
   );
 }
