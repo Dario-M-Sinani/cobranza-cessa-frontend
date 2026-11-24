@@ -21,6 +21,8 @@ import { aCentavos, aDecimal, desgloseVuelto, fechaCorta, formatoBs, formatoKwh,
 
 type Metodo = "efectivo" | "qr" | "documento";
 
+const QR_TOPE_CENTAVOS = 50_000_00;
+const QR_MAX_CLIENTES = 20;
 const DOCUMENTO_VACIO = { ente_id: "", banco_id: "", numero: "", fecha_registro: "", fecha_vencimiento: "" };
 
 // Un cliente dentro del cobro en curso: su deuda consultada y cuántos comprobantes se
@@ -80,6 +82,8 @@ export function ConsultaDeudaPage() {
   const [transaccion, setTransaccion] = useState<TransaccionQR | null>(null);
   const [cobroEfectivo, setCobroEfectivo] = useState<CobroEfectivo | null>(null);
   const [cobroAgrupado, setCobroAgrupado] = useState<CobroAgrupado | null>(null);
+  // El cobro vino de una proforma (pueden ser cientos de clientes): sin comprobante interno ni lista larga.
+  const [deProforma, setDeProforma] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -95,6 +99,13 @@ export function ConsultaDeudaPage() {
   const conDeuda = carrito.filter((e) => aCentavos(e.deuda.monto) > 0);
   const varios = carrito.length > 1;
   const aCobrar = carrito.reduce((suma, e) => suma + Math.max(montoDe(e), 0), 0);
+  // Bancarización: desde Bs 50.000 no se cobra con QR (sí con cheque, depósito, etc.); un QR cubre hasta 20 clientes.
+  const qrBloqueado =
+    aCobrar >= QR_TOPE_CENTAVOS
+      ? "Bs 50.000 o más: por bancarización no se cobra con QR. Usa cheque, depósito u otro medio."
+      : conDeuda.length > QR_MAX_CLIENTES
+        ? `Un QR cubre hasta ${QR_MAX_CLIENTES} clientes: usa otro medio o divide el cobro.`
+        : null;
   const seleccionInvalida = carrito.some((e) => aCentavos(e.deuda.monto) > 0 && montoDe(e) <= 0);
   const recibidoCentavos = aCentavos(recibido);
   const vuelto = recibidoCentavos - aCobrar;
@@ -157,6 +168,7 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
     setTransaccion(null);
     setCobroEfectivo(null);
     setCobroAgrupado(null);
+    setDeProforma(false);
     setError(null);
     codigoInputRef.current?.focus();
   }
@@ -220,6 +232,7 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
       }
     }
     setCarrito(nuevo);
+    setDeProforma(true);
     setActivo(0);
     setMetodo("efectivo");
     setRecibido("");
@@ -430,6 +443,15 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
               </div>
             </div>
 
+            {!!actual.deuda.datos_cliente?.cobrados_sin_registrar && (
+              <p className="aviso">
+                {actual.deuda.datos_cliente.cobrados_sin_registrar === 1
+                  ? "1 comprobante ya se cobró hace un momento"
+                  : `${actual.deuda.datos_cliente.cobrados_sin_registrar} comprobantes ya se cobraron hace un momento`}{" "}
+                y se está registrando en el SIIC: no se muestra para no cobrarlo dos veces.
+              </p>
+            )}
+
             {aCentavos(actual.deuda.monto) <= 0 ? (
               <p className="sin-deuda">Este cliente no tiene deuda pendiente.</p>
             ) : items.length > 0 ? (
@@ -552,7 +574,8 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
                       aria-selected={metodo === "qr"}
                       className={metodo === "qr" ? "pestana pestana--activa" : "pestana"}
                       onClick={() => setMetodo("qr")}
-                      title={conDeuda.length > 1 ? `Un solo QR por el total de los ${conDeuda.length} clientes` : undefined}
+                      disabled={qrBloqueado !== null}
+                      title={qrBloqueado ?? (conDeuda.length > 1 ? `Un solo QR por el total de los ${conDeuda.length} clientes` : undefined)}
                     >
                       QR
                     </button>
@@ -567,6 +590,7 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
                       </button>
                     )}
                   </div>
+                  {qrBloqueado && <p className="detalle-fecha">QR desactivado: {qrBloqueado}</p>}
 
                   {metodo === "documento" && formasPago?.disponible ? (
                     <form className="efectivo" onSubmit={onCobrarConDocumento}>
@@ -683,6 +707,9 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
                       </button>
                     </form>
                   ) : (
+                    qrBloqueado ? (
+                      <p className="mensaje-error">{qrBloqueado}</p>
+                    ) : (
                     <div className="efectivo">
                       <p className="detalle-fecha">
                         Se genera un QR por Bs. {formatoBs(aCobrar)}
@@ -692,6 +719,7 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
                         {enviando ? "Generando..." : `Generar QR por Bs. ${formatoBs(aCobrar)}`}
                       </button>
                     </div>
+                    )
                   )}
                 </>
               )}
@@ -720,6 +748,7 @@ function formaDe(documento: CobroEfectivo["documento"] | undefined): string {
           cobrado={aCentavos(cobroAgrupado.monto_total)}
           recibido={aCentavos(cobroAgrupado.monto_recibido)}
           detalle={cobroAgrupado.cobros}
+          resumido={deProforma}
           onImprimir={() => navigate(`/comprobante/grupo/${cobroAgrupado.id}?imprimir=1`)}
           onSiguiente={nuevoCobro}
         />
@@ -758,10 +787,13 @@ function ResultadoEfectivo(props: {
   cobrado: number;
   recibido: number;
   detalle: CobroEfectivo[];
+  /** Proforma: solo el resumen y las facturas, sin comprobante interno (pueden ser cientos de clientes). */
+  resumido?: boolean;
   onImprimir: () => void;
   onSiguiente: () => void;
 }) {
-  const { vuelto, cobrado, recibido, detalle } = props;
+  const { vuelto, cobrado, recibido, detalle, resumido } = props;
+  const comprobantes = detalle.reduce((suma, c) => suma + (c.items_cobrados?.length ?? 0), 0);
   const documento = detalle[0]?.documento && "ente" in detalle[0].documento ? detalle[0].documento : null;
   const siguiente = useRef<HTMLButtonElement>(null);
   useEffect(() => siguiente.current?.focus(), []);
@@ -788,6 +820,17 @@ function ResultadoEfectivo(props: {
           </p>
         </>
       )}
+      {resumido ? (
+        <p className="resultado__resumen">
+          {detalle.length === 1 ? "1 cliente" : `${detalle.length} clientes`} ·{" "}
+          {comprobantes === 1 ? "1 comprobante" : `${comprobantes} comprobantes`} · Bs. {formatoBs(cobrado)}
+        </p>
+      ) : null}
+      {resumido ? (
+        <p className="detalle-fecha">
+          Cada factura se registra en el SIIC por separado; se pide desde <strong>Mis cobros → Ver clientes</strong>.
+        </p>
+      ) : (
       <table className="comprobante__tabla">
         <tbody>
           {detalle.map((c) => {
@@ -808,11 +851,14 @@ function ResultadoEfectivo(props: {
           })}
         </tbody>
       </table>
+      )}
       <div className="acciones">
-        <BotonFactura facturasIds={detalle.flatMap((c) => (c.factura ? [c.factura.id] : []))} />
-        <button className="boton-secundario" onClick={props.onImprimir}>
-          Comprobante interno
-        </button>
+        {!resumido && <BotonFactura facturasIds={detalle.flatMap((c) => (c.factura ? [c.factura.id] : []))} />}
+        {!resumido && (
+          <button className="boton-secundario" onClick={props.onImprimir}>
+            Comprobante interno
+          </button>
+        )}
         <button ref={siguiente} onClick={props.onSiguiente}>
           Siguiente cliente (Enter)
         </button>

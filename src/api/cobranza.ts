@@ -216,6 +216,8 @@ export interface ComprobanteDelDia {
   clientes: { codigo: string; nombre: string }[];
   facturas: string[];
   facturas_ids: number[]; // para abrir el PDF de la factura del SIIC
+  /** Cobros de varios clientes (grupo, QR de varios, proforma): cada cliente con su monto y su factura. */
+  detalle?: { codigo: string; nombre: string; monto: string; factura: string; factura_id: number | null }[];
   impresiones: number;
   ultima_impresion: string | null;
   anulacion: { por: string; en: string; motivo: string } | null;

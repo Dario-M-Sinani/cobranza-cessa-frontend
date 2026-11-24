@@ -8,6 +8,9 @@ import { BotonFactura } from "../components/BotonFactura";
 import { aCentavos, formatoBs } from "../utils/dinero";
 import { fechaISO, hoyISO, hora } from "../utils/fechas";
 
+// Desde cuántos clientes un cobro se muestra resumido (una proforma pueden ser cientos).
+const RESUMIR_DESDE = 4;
+
 /**
  * Cobros del panel de un día, para supervisor/admin: buscar el comprobante de un cliente y
  * reimprimirlo (la cajera imprime cada uno una sola vez, al cobrar). La reimpresión sale
@@ -33,6 +36,17 @@ export function ComprobantesPage() {
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [recarga, setRecarga] = useState(0);
+  // Cobros de muchos clientes desplegados ("tipo-id").
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+
+  function alternarAbierto(clave: string) {
+    setAbiertos((previo) => {
+      const nuevo = new Set(previo);
+      if (nuevo.has(clave)) nuevo.delete(clave);
+      else nuevo.add(clave);
+      return nuevo;
+    });
+  }
 
   async function onAnular(evento: FormEvent, f: ComprobanteDelDia) {
     evento.preventDefault();
@@ -96,10 +110,14 @@ export function ComprobantesPage() {
         (!cajero || f.cajero === cajero) &&
         (!texto ||
           f.numero.toLowerCase().includes(texto) ||
+          f.facturas.some((n) => n.includes(texto)) ||
           f.clientes.some((c) => c.codigo.includes(texto) || c.nombre.toLowerCase().includes(texto)))
     );
   }, [filas, entidad, cajero, busqueda]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const texto = busqueda.trim().toLowerCase();
+  const coincide = (c: { codigo: string; nombre: string; factura?: string }) =>
+    !texto || c.codigo.includes(texto) || c.nombre.toLowerCase().includes(texto) || (c.factura ?? "").includes(texto);
   const total = visibles.reduce((suma, f) => suma + (f.anulacion ? 0 : aCentavos(f.monto)), 0);
   const anulados = visibles.filter((f) => f.anulacion).length;
 
@@ -179,17 +197,32 @@ export function ComprobantesPage() {
               </tr>
             </thead>
             <tbody>
-              {visibles.map((f) => (
-                <Fragment key={`${f.tipo}-${f.id}`}>
+              {visibles.map((f) => {
+                const clave = `${f.tipo}-${f.id}`;
+                const resumido = (f.detalle?.length ?? 0) >= RESUMIR_DESDE;
+                // Al buscar un cliente o una factura, el cobro grande se abre solo con lo que coincide.
+                const abierto = resumido && (abiertos.has(clave) || (texto !== "" && !f.numero.toLowerCase().includes(texto)));
+                const conFactura = f.facturas.filter((n) => /^\d+$/.test(n));
+                return (
+                <Fragment key={clave}>
                 <tr className={f.anulacion ? "fila--anulada" : undefined}>
                   <td className="sin-corte">{hora(f.fecha)}</td>
                   <td className="sin-corte">{f.numero}</td>
                   <td>
-                    {f.clientes.map((c) => (
-                      <div key={c.codigo}>
-                        {c.nombre} <span className="detalle-fecha">{c.codigo}</span>
-                      </div>
-                    ))}
+                    {resumido ? (
+                      <>
+                        <strong>{f.clientes.length} clientes</strong>{" "}
+                        <span className="detalle-fecha">
+                          {f.clientes[0]?.codigo} … {f.clientes[f.clientes.length - 1]?.codigo}
+                        </span>
+                      </>
+                    ) : (
+                      f.clientes.map((c) => (
+                        <div key={c.codigo}>
+                          {c.nombre} <span className="detalle-fecha">{c.codigo}</span>
+                        </div>
+                      ))
+                    )}
                   </td>
                   <td>{f.forma_pago}</td>
                   <td className="num">
@@ -197,9 +230,15 @@ export function ComprobantesPage() {
                   </td>
                   {!esCajera && <td>{f.cajero}</td>}
                   <td>
-                    {f.facturas.map((factura, i) => (
-                      <div key={i}>{factura}</div>
-                    ))}
+                    {resumido ? (
+                      <span className="sin-corte">
+                        {conFactura.length === f.facturas.length
+                          ? `${conFactura[0]} – ${conFactura[conFactura.length - 1]}`
+                          : `${conFactura.length} de ${f.facturas.length} registradas`}
+                      </span>
+                    ) : (
+                      f.facturas.map((factura, i) => <div key={i}>{factura}</div>)
+                    )}
                   </td>
                   <td>
                     {f.impresiones === 0 ? (
@@ -215,7 +254,13 @@ export function ComprobantesPage() {
                       <span className="estado estado--error">Anulado</span>
                     ) : (
                       <div className="acciones">
-                        <BotonFactura chico facturasIds={f.facturas_ids ?? []} etiqueta={f.facturas_ids?.length > 1 ? "Facturas" : "Factura"} />
+                        {resumido ? (
+                          <button className="boton-secundario boton-chico" onClick={() => alternarAbierto(clave)} aria-expanded={abierto}>
+                            {abierto ? "Ocultar clientes" : "Ver clientes"}
+                          </button>
+                        ) : (
+                          <BotonFactura chico facturasIds={f.facturas_ids ?? []} etiqueta={f.facturas_ids?.length > 1 ? "Facturas" : "Factura"} />
+                        )}
                         {(!esCajera || f.impresiones === 0) && (
                           <Link className="boton-secundario boton-chico" to={`/comprobante/${f.tipo}/${f.id}?imprimir=1`}>
                             {f.impresiones === 0 ? "Imprimir" : "Reimprimir"}
@@ -236,6 +281,34 @@ export function ComprobantesPage() {
                     )}
                   </td>
                 </tr>
+                {abierto && (
+                  <tr className="fila--detalle">
+                    <td colSpan={columnas}>
+                      <table className="tabla tabla--detalle-cobro">
+                        <thead>
+                          <tr>
+                            <th>Cliente</th>
+                            <th>Nombre</th>
+                            <th className="num">Monto (Bs.)</th>
+                            <th>Factura</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(f.detalle ?? []).filter(coincide).map((c) => (
+                            <tr key={c.codigo}>
+                              <td>{c.codigo}</td>
+                              <td>{c.nombre}</td>
+                              <td className="num">{formatoBs(aCentavos(c.monto))}</td>
+                              <td>{c.factura}</td>
+                              <td>{c.factura_id && <BotonFactura chico facturasIds={[c.factura_id]} etiqueta="Factura" />}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
                 {f.anulacion && (
                   <tr className="fila--anulada fila--detalle">
                     <td colSpan={columnas}>
@@ -272,7 +345,8 @@ export function ComprobantesPage() {
                   </tr>
                 )}
                 </Fragment>
-              ))}
+                );
+              })}
               {visibles.length === 0 && (
                 <tr>
                   <td colSpan={columnas}>{filas.length === 0 ? "No hubo cobros en el panel este día." : "Ningún cobro coincide con el filtro."}</td>

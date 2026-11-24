@@ -19,6 +19,18 @@ interface Proforma {
   con_deuda: number;
 }
 
+// Se cobra solo a quien debe: un medidor cuyas notas de crédito superan sus facturas queda con saldo a
+// favor y, como en el cobro de un solo cliente, no entra (así el total coincide con lo que se cobra).
+function cobrable(c: ClienteProforma): boolean {
+  return c.cantidad > 0 && aCentavos(c.total) > 0;
+}
+
+function montoProforma(c: ClienteProforma): string {
+  if (!c.cantidad) return "Sin deuda";
+  const centavos = aCentavos(c.total);
+  return centavos < 0 ? `A favor ${formatoBs(-centavos)}` : formatoBs(centavos);
+}
+
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 /**
@@ -52,7 +64,7 @@ export function ProformaCobro({
     try {
       const p = await apiFetch<Proforma>(`/proformas/${encodeURIComponent(numero.trim())}/?anio=${anio}&mes=${mes}`);
       setProforma(p);
-      setMarcados(new Set(p.clientes.filter((c) => c.cantidad > 0).map((c) => c.nro_cliente)));
+      setMarcados(new Set(p.clientes.filter(cobrable).map((c) => c.nro_cliente)));
     } catch (err) {
       setProforma(null);
       setError(err instanceof ApiError ? err.message : "No se pudo leer la proforma.");
@@ -77,7 +89,7 @@ export function ProformaCobro({
     try {
       await onAgregar(
         proforma.clientes
-          .filter((c) => marcados.has(c.nro_cliente) && c.cantidad > 0)
+          .filter((c) => marcados.has(c.nro_cliente) && cobrable(c))
           .map((c) => ({ nro_cliente: c.nro_cliente, cantidad: c.cantidad })),
       );
       onCerrar();
@@ -92,9 +104,9 @@ export function ProformaCobro({
   const visibles = (proforma?.clientes ?? []).filter(
     (c) => !texto || c.nro_cliente.includes(texto) || c.nombre.toLowerCase().includes(texto) || c.direccion.toLowerCase().includes(texto),
   );
-  const elegidos = (proforma?.clientes ?? []).filter((c) => marcados.has(c.nro_cliente) && c.cantidad > 0);
+  const elegidos = (proforma?.clientes ?? []).filter((c) => marcados.has(c.nro_cliente) && cobrable(c));
   // "Todos" de la app Java: marca (o desmarca) de una vez los visibles que tienen deuda.
-  const conDeudaVisibles = visibles.filter((c) => c.cantidad > 0);
+  const conDeudaVisibles = visibles.filter(cobrable);
   const todosMarcados = conDeudaVisibles.length > 0 && conDeudaVisibles.every((c) => marcados.has(c.nro_cliente));
 
   function alternarTodos() {
@@ -182,14 +194,14 @@ export function ProformaCobro({
               {visibles.map((c) => (
                 <tr
                   key={c.nro_cliente}
-                  className={c.cantidad === 0 ? "fila--anulada" : undefined}
-                  onClick={() => c.cantidad > 0 && alternar(c.nro_cliente)}
+                  className={cobrable(c) ? undefined : "fila--anulada"}
+                  onClick={() => cobrable(c) && alternar(c.nro_cliente)}
                 >
                   <td>
                     <input
                       type="checkbox"
-                      disabled={c.cantidad === 0}
-                      checked={marcados.has(c.nro_cliente) && c.cantidad > 0}
+                      disabled={!cobrable(c)}
+                      checked={marcados.has(c.nro_cliente) && cobrable(c)}
                       onChange={() => alternar(c.nro_cliente)}
                       onClick={(e) => e.stopPropagation()}
                       aria-label={`Cobrar a ${c.nombre}`}
@@ -204,7 +216,7 @@ export function ProformaCobro({
                   </td>
                   <td>{c.categoria}</td>
                   <td className="num">{c.cantidad || "—"}</td>
-                  <td className="num">{c.cantidad ? formatoBs(aCentavos(c.total)) : "Sin deuda"}</td>
+                  <td className="num">{montoProforma(c)}</td>
                 </tr>
               ))}
             </tbody>

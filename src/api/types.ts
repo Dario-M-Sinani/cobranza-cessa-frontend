@@ -39,6 +39,8 @@ export interface Deuda {
     nro_medidor?: string;
     categoria?: string;
     estado?: string;
+    // Comprobantes que el panel ya cobró y el SIIC todavía no registró: no se ofrecen de nuevo.
+    cobrados_sin_registrar?: number;
   };
 }
 

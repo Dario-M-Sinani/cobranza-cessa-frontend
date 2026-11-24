@@ -628,6 +628,12 @@ kbd {
   font-size: 20px;
 }
 
+/* Proforma: en vez de la lista de cientos de clientes, una línea con el resumen */
+.resultado__resumen {
+  margin: 4px 0 8px;
+  font-weight: 600;
+}
+
 .monto--vuelto {
   font-size: 48px;
   margin: 0;
@@ -1094,4 +1100,15 @@ a.boton-secundario {
 
 .cotizacion__confirmar p {
   margin: 0 0 10px;
+}
+
+/* Mis cobros: cliente por cliente de un cobro grande (proforma) */
+.tabla--detalle-cobro {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.tabla--detalle-cobro th,
+.tabla--detalle-cobro td {
+  padding: 4px 8px;
 }
