@@ -126,6 +126,11 @@ export function CotizacionPage() {
         La del SIIC es la que vale: con ella se pasan a bolivianos los dólares al cerrar caja. La del Banco Central es la
         referencia oficial. Cada día queda registrado abajo como constancia.
       </p>
+      {hoy && !hoy.editable && (
+        <p className="detalle-fecha">
+          Se carga sola con la oficial del BCB y no se edita desde el panel: cada carga queda en el registro.
+        </p>
+      )}
       {error && <p className="mensaje-error">{error}</p>}
       {aviso && <p className="aviso">{aviso}</p>}
 
@@ -151,12 +156,12 @@ export function CotizacionPage() {
               {!hoy.siic && hoy.carga_automatica && !hoy.carga_error && (
                 <p className="detalle-fecha">Se carga sola con la del BCB en cuanto publique la vigencia de hoy.</p>
               )}
-              {!corrigiendo && (
+              {hoy.editable && !corrigiendo && (
                 <button className="boton-secundario boton-chico cotizacion__cargar" onClick={abrirCorreccion}>
                   {hoy.siic ? "Corregir" : "Cargar a mano"}
                 </button>
               )}
-              {corrigiendo && (
+              {hoy.editable && corrigiendo && (
                 <form className="cotizacion__confirmar" onSubmit={onGuardar}>
                   <label>
                     Cotización de hoy (Bs por $us)

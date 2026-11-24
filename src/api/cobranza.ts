@@ -339,6 +339,8 @@ export interface CotizacionDolar {
   carga_error: string;
   /** El panel carga solo la del BCB en el SIIC cuando falta. */
   carga_automatica: boolean;
+  /** Se puede corregir o cargar a mano desde el panel (apagado en producción: solo la carga automática). */
+  editable: boolean;
   /** Cargas y correcciones del panel en el SIIC para ese día, de la más nueva a la más vieja. */
   cambios: CambioCotizacion[];
   alertas: { tipo: "sin_siic" | "carga_fallida" | "diferencia"; mensaje: string }[];
